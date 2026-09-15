@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { useNavigate } from "react-router";
 
-export function LoginPage(changeUsername, changeActivePage) {
+export function LoginPage() {
+  const navigate = useNavigate();
   const [loginData, setLoginData] = useState({
     username: "",
     password: "",
@@ -52,8 +54,12 @@ export function LoginPage(changeUsername, changeActivePage) {
               className='btn btn-outline-primary w-100'
               onClick={() => {
                 console.log("veri gönderildi ", loginData);
-                changeUsername(loginData.username);
-                changeActivePage("default");
+                localStorage.setItem("isAuth", true);
+                localStorage.setItem("loginData", JSON.stringify(loginData));
+                localStorage.setItem("id", 5);
+                navigate(
+                  `/?name=${loginData.username} & pw= ${loginData.password}`,
+                );
               }}
             >
               Login

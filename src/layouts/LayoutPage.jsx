@@ -1,4 +1,9 @@
-export function LayoutPage({ children,username }) {
+import { Link, NavLink, Outlet } from "react-router";
+
+export function LayoutPage() {
+  let loginData = localStorage.getItem("loginData");
+  let userData = JSON.parse(loginData);
+
   return (
     <>
       <nav className='navbar navbar-expand-lg bg-primary' data-bs-theme='dark'>
@@ -37,11 +42,24 @@ export function LayoutPage({ children,username }) {
                 </a>
               </li>
             </ul>
-            <span class='navbar-text'>{username}</span>
           </div>
+          {userData?.username ? (
+            <>
+              {" "}
+              <span className='navbar-text'>{userData.username}</span>
+              <Link className="text-white" onClick={() => {
+
+                console.log("çıkışa tıklandı")
+              }}>Çıkış Yap</Link>
+            </>
+          ) : (
+            <NavLink to={"/login"}>Giriş Yap</NavLink>
+          )}
         </div>
       </nav>
-      <main>{children}</main>
+      <main>
+        <Outlet></Outlet>
+      </main>
     </>
   );
 }

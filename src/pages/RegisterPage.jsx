@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { useParams } from "react-router";
 
-export function RegisterPage(changeUsername, changeActivePage) {
+export function RegisterPage() {
+  const params = useParams();
   const [registerData, setRegisterData] = useState({
     username: "",
     password: "",
@@ -90,8 +92,7 @@ export function RegisterPage(changeUsername, changeActivePage) {
               className='btn btn-outline-success w-100'
               onClick={() => {
                 console.log("veri gönderildi ", registerData);
-                changeUsername(registerData.username);
-                changeActivePage("default");
+                console.log("params: ", params)
               }}
             >
               Register
