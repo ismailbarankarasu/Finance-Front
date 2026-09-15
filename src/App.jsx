@@ -5,7 +5,6 @@ import { LayoutPage } from "./layouts/LayoutPage";
 import { HomePage } from "./pages/HomePage";
 import { createBrowserRouter, RouterProvider } from "react-router";
 import ProtectedRoute from "./components/ProtectedRoute";
-
 const routes = createBrowserRouter([
   {
     element: (
@@ -15,7 +14,7 @@ const routes = createBrowserRouter([
     ),
     children: [{ path: "/", Component: HomePage }],
   },
-  { path: "/register/:id", Component: RegisterPage },
+  { path: "/register", Component: RegisterPage },
   { path: "/login", Component: LoginPage },
 ]);
 export function App() {

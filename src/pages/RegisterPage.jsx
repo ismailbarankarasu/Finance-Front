@@ -1,18 +1,41 @@
 import { useState } from "react";
-import { useParams } from "react-router";
+import { useNavigate } from "react-router";
+import api from "../api/client";
 
 export function RegisterPage() {
-  const params = useParams();
+  const navigate = useNavigate();
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [registerData, setRegisterData] = useState({
-    username: "",
-    password: "",
-    firstname: "",
-    lastname: ""
+    fullName: "",
+    email: "",
+    password: ""
   });
+  async function handleSubmit(event) {
+    event.preventDefault();
+    if (isSubmitting) return;
+
+    setError("");
+    setIsSubmitting(true);
+    try {
+      await api.post("/auth/register", registerData);
+      navigate("/login", { replace: true });
+    } catch (err) {
+      const message = err.response?.data?.message;
+      setError(
+        typeof message === "string" && message.trim()
+          ? message
+          : "Kayıt oluşturulamadı. Bilgilerinizi ve bağlantınızı kontrol edin.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <>
       <div className='mt-5'>
-        <div className='w-75 mx-auto mt-5 shadow p-5'>
+        <form className='w-75 mx-auto mt-5 shadow p-5' onSubmit={handleSubmit}>
           <h5 className='text-center'>
             <i className='bi bi-box-arrow-in-right pe-3 fs-3'></i>
             Register Finans Takip
@@ -20,53 +43,40 @@ export function RegisterPage() {
 
         <div className='form-floating mb-3'>
             <input
-              name='firstname'
+              name='fullName'
+              autoComplete='name'
+              required
               onChange={(e) => {
                 setRegisterData(prevState =>({
                   ...prevState,
-                  firstname: e.target.value }));
+                  fullName: e.target.value }));
               }}
-              value={registerData.firstname}
+              value={registerData.fullName}
               type='text'
               className='form-control'
-              id='floatingInput'
-              placeholder='Firstname'
+              id='registerFullName'
+              placeholder='fullName'
             />
-            <label htmlFor='floatingInput'>Firstname</label>
-          </div>
-
-          <div className='form-floating mb-3'>
-            <input
-              name='lastname'
-              onChange={(e) => {
-                setRegisterData(prevState =>({
-                  ...prevState,
-                  lastname: e.target.value }));
-              }}
-              value={registerData.lastname}
-              type='text'
-              className='form-control'
-              id='floatingInput'
-              placeholder='Lastname'
-            />
-            <label htmlFor='floatingInput'>Lastname</label>
+            <label htmlFor='registerFullName'>FullName</label>
           </div>
           
         <div className='form-floating mb-3'>
             <input
-              name='username'
+              name='email'
+              autoComplete='email'
+              required
               onChange={(e) => {
                 setRegisterData(prevState =>({
                   ...prevState,
-                  username: e.target.value }));
+                  email: e.target.value }));
               }}
-              value={registerData.username}
-              type='text'
+              value={registerData.email}
+              type='email'
               className='form-control'
-              id='floatingInput'
-              placeholder='Username'
+              id='registerEmail'
+              placeholder='email'
             />
-            <label htmlFor='floatingInput'>Username</label>
+            <label htmlFor='registerEmail'>email</label>
           </div>
 
           <div className='form-floating'>
@@ -78,6 +88,9 @@ export function RegisterPage() {
                 }));
               }}
               type='password'
+              name='password'
+              autoComplete='new-password'
+              required
               value={registerData.password}
               className='form-control'
               id='floatingPassword'
@@ -86,19 +99,17 @@ export function RegisterPage() {
             <label htmlFor='floatingPassword'>Password</label>
           </div>
 
+          {error && <div className='alert alert-danger mt-3' role='alert'>{error}</div>}
           <div className='mt-3'>
             <button
-              type='button'
+              type='submit'
+              disabled={isSubmitting}
               className='btn btn-outline-success w-100'
-              onClick={() => {
-                console.log("veri gönderildi ", registerData);
-                console.log("params: ", params)
-              }}
             >
-              Register
+              {isSubmitting ? "Kayıt oluşturuluyor..." : "Register"}
             </button>
           </div>
-        </div>
+        </form>
       </div>
     </>
   );

@@ -2,7 +2,12 @@ import { Link, NavLink, Outlet } from "react-router";
 
 export function LayoutPage() {
   let loginData = localStorage.getItem("loginData");
-  let userData = JSON.parse(loginData);
+  let userData;
+  try {
+    userData = JSON.parse(loginData);
+  } catch {
+    userData = null;
+  }
 
   return (
     <>
