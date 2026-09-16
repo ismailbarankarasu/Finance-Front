@@ -15,7 +15,7 @@ export function HomePage() {
       <p className='lead text-danger'> Yavuz hoca ile react bir başka !</p>
       <div>
         <NavLink to={"/login"}>Giriş Yap</NavLink> ||
-        <NavLink to={"/register/3"}>Kayıt Ol</NavLink>
+        <NavLink to={"/register"}>Kayıt Ol</NavLink>
       </div>
     </>
   );
