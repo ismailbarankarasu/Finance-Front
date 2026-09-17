@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router";
-import api from "../api/client";
-import { useAuth } from "../context/useAuth";
+import api from "../../api/client";
+import { useAuth } from "../../context/useAuth";
 
 export function LoginPage() {
   const { isAuth, login } = useAuth();

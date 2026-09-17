@@ -4,7 +4,8 @@ import { useAuth } from "../context/useAuth";
 export function LayoutPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const displayName = user?.username || user?.fullName || user?.email || "Kullanıcı";
+  const displayName =
+    user?.username || user?.fullName || user?.email || "Kullanıcı";
 
   function handleLogout() {
     logout();
@@ -40,10 +41,17 @@ export function LayoutPage() {
               </li>
 
               <li className='nav-item'>
-                <a className='nav-link text-white' href='#islemler'>
+                <NavLink className='nav-link text-white' to={"/transactions"}>
                   İşlemler
-                </a>
+                </NavLink>
               </li>
+
+              <li className='nav-item'>
+                <NavLink className='nav-link text-white' to='/categories'>
+                  Kategoriler
+                </NavLink>
+              </li>
+
             </ul>
           </div>
           {user ? (
@@ -57,12 +65,18 @@ export function LayoutPage() {
                 type='button'
                 onClick={handleLogout}
               >
-                <i className='bi bi-box-arrow-right me-1' aria-hidden='true'></i>
+                <i
+                  className='bi bi-box-arrow-right me-1'
+                  aria-hidden='true'
+                ></i>
                 Çıkış Yap
               </button>
             </div>
           ) : (
-            <NavLink className='btn btn-outline-light btn-sm ms-lg-4' to='/login'>
+            <NavLink
+              className='btn btn-outline-light btn-sm ms-lg-4'
+              to='/login'
+            >
               Giriş Yap
             </NavLink>
           )}

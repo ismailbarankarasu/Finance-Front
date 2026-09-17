@@ -1,10 +1,11 @@
 //import { useState } from "react";
-import { LoginPage } from "./pages/LoginPage";
-import { RegisterPage } from "./pages/RegisterPage";
+import { LoginPage } from "./pages/Auth/LoginPage";
+import { RegisterPage } from "./pages/Auth/RegisterPage";
 import { LayoutPage } from "./layouts/LayoutPage";
-import { HomePage } from "./pages/HomePage";
+import { HomePage } from "./pages/Home/HomePage";
 import { createBrowserRouter, RouterProvider } from "react-router";
 import ProtectedRoute from "./components/ProtectedRoute";
+import CategoryPage from "./pages/Category/CategoryPage";
 const routes = createBrowserRouter([
   {
     element: (
@@ -12,7 +13,10 @@ const routes = createBrowserRouter([
         <LayoutPage></LayoutPage>
       </ProtectedRoute>
     ),
-    children: [{ path: "/", Component: HomePage }],
+    children: [
+      { path: "/", Component: HomePage },
+      { path: "/categories", Component: CategoryPage },
+    ],
   },
   { path: "/register", Component: RegisterPage },
   { path: "/login", Component: LoginPage },
