@@ -1,7 +1,8 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "http://localhost:5000/api",
+  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api",
+  timeout: 20000,
 });
 
 api.interceptors.request.use((config) => {
@@ -17,9 +18,10 @@ api.interceptors.response.use(
   (error) => {
     if (
       error.response?.status === 401 &&
-      !window.location.pathname.startsWith("/login")
+      !["/auth/login", "/auth/register"].includes(error.config?.url)
     ) {
       localStorage.removeItem("token");
+      localStorage.removeItem("user");
       window.location.assign("/login");
     }
     return Promise.reject(error);

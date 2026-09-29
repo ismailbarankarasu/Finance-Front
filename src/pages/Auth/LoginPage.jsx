@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate, useNavigate } from "react-router";
+import { Link, Navigate, useNavigate } from "react-router";
 import api from "../../api/client";
 import { useAuth } from "../../context/useAuth";
 
@@ -26,7 +26,7 @@ export function LoginPage() {
     setError("");
     setIsSubmitting(true);
     try {
-      const { data } = await api.post("/auth/login", loginData);
+      const { data } = await api.post("/auth/login", { ...loginData, email: loginData.email.trim() });
       login(data);
       navigate("/", { replace: true });
     } catch {
@@ -44,7 +44,7 @@ export function LoginPage() {
         <form className='w-75 mx-auto mt-5 shadow p-5' onSubmit={handleSubmit}>
           <h5 className='text-center'>
             <i className='bi bi-box-arrow-in-right pe-3 fs-3'></i>
-            Login Finans Takip
+            Finans Takip · Giriş yap
           </h5>
           <div className='form-floating mb-3'>
             <input
@@ -63,7 +63,7 @@ export function LoginPage() {
               id='floatingInput'
               placeholder='Email'
             />
-            <label htmlFor='floatingInput'>Email</label>
+            <label htmlFor='floatingInput'>E-posta</label>
           </div>
           <div className='form-floating'>
             <input
@@ -82,7 +82,7 @@ export function LoginPage() {
               id='floatingPassword'
               placeholder='Password'
             />
-            <label htmlFor='floatingPassword'>Password</label>
+            <label htmlFor='floatingPassword'>Şifre</label>
           </div>
 
           {error && <div className='alert alert-danger mt-3' role='alert'>{error}</div>}
@@ -92,9 +92,10 @@ export function LoginPage() {
               disabled={isSubmitting}
               className='btn btn-outline-primary w-100'
             >
-              {isSubmitting ? "Giriş yapılıyor..." : "Login"}
+              {isSubmitting ? "Giriş yapılıyor..." : "Giriş yap"}
             </button>
           </div>
+          <p className='mt-3 mb-0 text-center'>Hesabın yok mu? <Link to='/register'>Kayıt ol</Link></p>
         </form>
       </div>
     </>

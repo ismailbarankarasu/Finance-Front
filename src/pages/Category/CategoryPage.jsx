@@ -182,7 +182,7 @@ export default function CategoryPage() {
           );
         })}
       </div>
-      <ConfirmModal
+      <ConfirmModal 
         show={categoryToDelete !== null}
         title='Kategoriyi silmek istiyor musunuz?'
         body={`"${categoryToDelete?.name ?? ""}" kategorisi silinecek. Bu işlem geri alınamaz.`}

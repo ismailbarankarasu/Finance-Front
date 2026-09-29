@@ -1,5 +1,6 @@
-﻿import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AuthContext } from "./useAuth";
+import api from "../api/client";
 
 function normalizeToken(value) {
   if (typeof value !== "string") return null;
@@ -20,6 +21,32 @@ export function AuthProvider({ children }) {
     }
   });
   const isAuth = Boolean(token);
+  const [sessionStatus, setSessionStatus] = useState(() => token ? "loading" : "idle");
+  const [sessionRetry, setSessionRetry] = useState(0);
+
+  useEffect(() => {
+    if (!token) return;
+    const controller = new AbortController();
+    async function loadUser() {
+      try {
+        const { data } = await api.get("/auth/me", { signal: controller.signal });
+        if (controller.signal.aborted) return;
+        if (!data || typeof data.fullName !== "string" || typeof data.email !== "string") throw new Error("Invalid user response");
+        localStorage.setItem("user", JSON.stringify(data));
+        setUser(data);
+        setSessionStatus("success");
+      } catch {
+        if (!controller.signal.aborted) setSessionStatus("error");
+      }
+    }
+    loadUser();
+    return () => controller.abort();
+  }, [token, sessionRetry]);
+
+  function retrySession() {
+    setSessionStatus("loading");
+    setSessionRetry((previous) => previous + 1);
+  }
 
   function login(data) {
     const nextToken = normalizeToken(data?.token);
@@ -30,6 +57,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem("isAuth");
     setToken(nextToken);
     setUser(nextUser);
+    setSessionStatus("success");
   }
 
   function logout() {
@@ -38,10 +66,11 @@ export function AuthProvider({ children }) {
     localStorage.removeItem("isAuth");
     setToken(null);
     setUser(null);
+    setSessionStatus("idle");
   }
 
   return (
-    <AuthContext.Provider value={{ isAuth, token, user, login, logout }}>
+    <AuthContext.Provider value={{ isAuth, token, user, login, logout, sessionStatus, retrySession }}>
       {children}
     </AuthContext.Provider>
   );

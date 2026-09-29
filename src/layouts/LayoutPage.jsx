@@ -1,6 +1,10 @@
 import { NavLink, Outlet, useNavigate } from "react-router";
 import { useAuth } from "../context/useAuth";
 
+function navLinkClassName({ isActive }) {
+  return `nav-link rounded px-3 ${isActive ? "active bg-white text-primary fw-semibold" : "text-white"}`;
+}
+
 export function LayoutPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -33,25 +37,28 @@ export function LayoutPage() {
           </button>
 
           <div className='collapse navbar-collapse' id='navbarNav'>
-            <ul className='navbar-nav ms-auto gap-lg-2'>
+            <ul className='navbar-nav ms-auto gap-1 gap-lg-2'>
               <li className='nav-item'>
-                <NavLink className='nav-link text-white' to='/'>
+                <NavLink className={navLinkClassName} to='/' end>
                   Ana Sayfa
                 </NavLink>
               </li>
 
               <li className='nav-item'>
-                <NavLink className='nav-link text-white' to={"/transactions"}>
+                <NavLink className={navLinkClassName} to={"/transactions"}>
                   İşlemler
                 </NavLink>
               </li>
 
               <li className='nav-item'>
-                <NavLink className='nav-link text-white' to='/categories'>
+                <NavLink className={navLinkClassName} to='/categories'>
                   Kategoriler
                 </NavLink>
               </li>
 
+              <li className='nav-item'>
+                <NavLink className={navLinkClassName} to='/reports'>Raporlar</NavLink>
+              </li>
             </ul>
           </div>
           {user ? (
