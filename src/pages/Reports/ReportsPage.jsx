@@ -1,354 +1,809 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import api from "../../api/client";
-import { EntryType } from "../../utils";
-import { dateRangeLabel, dateRangeParams } from "../../utils/finance";
-import { SummaryCards } from "../../components/SummaryCards";
-import { ReportChart } from "../../components/ReportChart";
+import { useAccounting } from "../../context/useAccounting";
 import {
-  normalizeCategories,
-  normalizeMonthly,
-  normalizeSummary,
-  reportSections,
-} from "./reportData";
-import { monthlyChartOption, categoryChartOption } from "./reportCharts";
-import { ReportTable } from "./ReportTable";
-import "./reports.css";
+  CompanyRole,
+} from "../../utils/accounting";
 
-function initialFilters() {
-  const year = new Date().getFullYear();
-  return { from: `${year}-01-01`, to: `${year}-12-31`, year, type: "" };
+const REPORT_TYPES = {
+  trial: "trial-balance",
+  vat: "vat-summary",
+  income: "income-statement",
+  balance: "balance-sheet",
+  reconciliation: "reconciliation",
+};
+
+function money(value) {
+  return Number(value ?? 0).toLocaleString("tr-TR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 export default function ReportsPage() {
-  const [filters, setFilters] = useState(initialFilters);
-  const [draft, setDraft] = useState(initialFilters);
+  const {
+    activeCompany,
+    activeCompanyId,
+    activePeriod,
+    activePeriodId,
+  } = useAccounting();
+
+  const [reportType, setReportType] =
+    useState(REPORT_TYPES.trial);
+
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+
   const [data, setData] = useState(null);
-  const [status, setStatus] = useState("loading");
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [filterError, setFilterError] = useState("");
-  const [exportError, setExportError] = useState("");
-  const [exportStatus, setExportStatus] = useState("");
-  const [exporting, setExporting] = useState("");
-  const exportingRef = useRef(false);
-  const monthlyChart = useRef(null);
-  const categoryChart = useRef(null);
+
+  const [status, setStatus] =
+    useState("idle");
+
+  const [error, setError] = useState("");
+
+  const role = activeCompany?.role;
+
+  const canReadReports =
+    role === CompanyRole.Admin ||
+    role === CompanyRole.Accountant ||
+    role === CompanyRole.Reader;
 
   useEffect(() => {
-    const controller = new AbortController();
-    async function loadReports() {
-      try {
-        const params = dateRangeParams(filters);
-        const [summary, categories, monthly] = await Promise.all([
-          api.get("/reports/summary", { params, signal: controller.signal }),
-          api.get("/reports/by-category", {
-            params: {
-              ...params,
-              ...(filters.type !== "" ? { type: Number(filters.type) } : {}),
-            },
-            signal: controller.signal,
-          }),
-          api.get("/reports/monthly", {
-            params: { year: filters.year },
-            signal: controller.signal,
-          }),
-        ]);
-        if (controller.signal.aborted) return;
-        setData({
-          summary: normalizeSummary(summary.data),
-          categories: normalizeCategories(categories.data),
-          monthly: normalizeMonthly(monthly.data),
-        });
-        setStatus("success");
-      } catch {
-        if (!controller.signal.aborted) setStatus("error");
-      }
-    }
-    loadReports();
-    return () => controller.abort();
-  }, [filters, refreshKey]);
+    if (!activePeriod) return;
 
-  function updateDraft(field, value) {
-    setDraft((previous) => ({ ...previous, [field]: value }));
-    setFilterError("");
-  }
+    setFrom(activePeriod.startDate);
+    setTo(activePeriod.endDate);
 
-  function applyFilters(event) {
-    event.preventDefault();
-    if (draft.from && draft.to && draft.from > draft.to) {
-      setFilterError("Başlangıç tarihi bitiş tarihinden sonra olamaz.");
+    setData(null);
+  }, [activePeriodId]);
+
+  async function loadReport() {
+    if (
+      !activeCompanyId ||
+      !activePeriodId
+    ) {
       return;
     }
-    const year = Number(draft.year);
-    if (!Number.isInteger(year) || year < 1 || year > 9999) {
-      setFilterError("1 ile 9999 arasında bir yıl girin.");
+
+    if (
+      from &&
+      to &&
+      from > to
+    ) {
+      setError(
+        "Başlangıç tarihi bitiş tarihinden sonra olamaz.",
+      );
+
       return;
     }
-    setStatus("loading");
-    setExportError("");
-    setExportStatus("");
-    setFilters({ ...draft, year });
-  }
 
-  function resetFilters() {
-    const defaults = initialFilters();
-    setDraft(defaults);
-    setFilters(defaults);
-    setFilterError("");
-    setExportError("");
-    setExportStatus("");
     setStatus("loading");
-  }
+    setError("");
 
-  async function downloadReport(format) {
-    if (status !== "success" || exportingRef.current) return;
-    exportingRef.current = true;
-    setExporting(format);
-    setExportError("");
-    setExportStatus("");
-    // Capture the loaded data and charts before loading the export libraries.
     try {
-      const sections = reportSections(data, filters);
-      const images =
-        format === "pdf"
-          ? {
-              "Aylık karşılaştırma": monthlyChart.current?.getImage(),
-              "Kategori dağılımı": categoryChart.current?.getImage(),
-            }
-          : {};
-      const { downloadReportFile } = await import("./reportExport");
-      await downloadReportFile(format, sections, images);
-      setExportStatus(`${format.toUpperCase()} dosyası hazırlandı.`);
-    } catch {
-      setExportError("Dosya hazırlanamadı. Lütfen tekrar deneyin.");
-    } finally {
-      exportingRef.current = false;
-      setExporting("");
+      const params = {
+        periodId:
+          activePeriodId,
+      };
+
+      if (
+        reportType !==
+        REPORT_TYPES.reconciliation
+      ) {
+        if (
+          reportType !==
+          REPORT_TYPES.balance
+        ) {
+          params.from =
+            from || undefined;
+        }
+
+        params.to =
+          to || undefined;
+      }
+
+      const { data } = await api.get(
+        `/companies/${activeCompanyId}/reports/${reportType}`,
+        {
+          params,
+        },
+      );
+
+      setData(data);
+
+      setStatus("success");
+    } catch (error) {
+      setStatus("error");
+
+      setError(
+        error.response?.data?.message ??
+          "Rapor alınamadı.",
+      );
     }
   }
 
-  const sections = data ? reportSections(data, filters) : [];
-  const hasMonthlyData = data?.monthly.some(
-    (item) => item.income !== 0 || item.expense !== 0,
+  useEffect(() => {
+    if (
+      !activeCompanyId ||
+      !activePeriodId ||
+      !canReadReports
+    ) {
+      return;
+    }
+
+    loadReport();
+  }, [
+    activeCompanyId,
+    activePeriodId,
+    reportType,
+  ]);
+
+  async function downloadPdf() {
+    try {
+      const params = {
+        periodId:
+          activePeriodId,
+      };
+
+      if (
+        reportType !==
+        REPORT_TYPES.reconciliation
+      ) {
+        if (
+          reportType !==
+          REPORT_TYPES.balance
+        ) {
+          params.from =
+            from || undefined;
+        }
+
+        params.to =
+          to || undefined;
+      }
+
+      const response = await api.get(
+        `/companies/${activeCompanyId}/reports/${reportType}/pdf`,
+        {
+          params,
+          responseType: "blob",
+        },
+      );
+
+      const blob = new Blob(
+        [response.data],
+        {
+          type: "application/pdf",
+        },
+      );
+
+      const url =
+        URL.createObjectURL(blob);
+
+      const link =
+        document.createElement("a");
+
+      link.href = url;
+
+      link.download =
+        `${reportType}-${activePeriodId}.pdf`;
+
+      document.body.appendChild(link);
+
+      link.click();
+      link.remove();
+
+      URL.revokeObjectURL(url);
+    } catch {
+      setError(
+        "PDF raporu indirilemedi.",
+      );
+    }
+  }
+
+  if (
+    !activeCompany ||
+    !activePeriod
+  ) {
+    return (
+      <section className="container py-4">
+        <div className="alert alert-warning">
+          Raporlar için aktif şirket ve
+          mali dönem seçmelisiniz.
+        </div>
+      </section>
+    );
+  }
+
+  if (!canReadReports) {
+    return (
+      <section className="container py-4">
+        <div className="alert alert-warning">
+          Bu kullanıcı rolünün mali raporları
+          görüntüleme yetkisi bulunmuyor.
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="container-fluid px-lg-4 py-4">
+      <header className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div>
+          <h1 className="h3">
+            Mali Raporlar
+          </h1>
+
+          <p className="text-body-secondary mb-0">
+            {activeCompany.name} ·{" "}
+            {activePeriod.name}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          className="btn btn-outline-danger"
+          disabled={
+            status !== "success"
+          }
+          onClick={downloadPdf}
+        >
+          <i className="bi bi-file-earmark-pdf me-2" />
+
+          PDF İndir
+        </button>
+      </header>
+
+      <div className="card mb-4">
+        <div className="card-body">
+          <div className="row g-3 align-items-end">
+            <div className="col-lg-4">
+              <label className="form-label">
+                Rapor
+              </label>
+
+              <select
+                className="form-select"
+                value={reportType}
+                onChange={(event) => {
+                  setReportType(
+                    event.target.value,
+                  );
+
+                  setData(null);
+                }}
+              >
+                <option
+                  value={
+                    REPORT_TYPES.trial
+                  }
+                >
+                  Mizan
+                </option>
+
+                <option
+                  value={
+                    REPORT_TYPES.vat
+                  }
+                >
+                  KDV Özeti
+                </option>
+
+                <option
+                  value={
+                    REPORT_TYPES.income
+                  }
+                >
+                  Gelir Tablosu
+                </option>
+
+                <option
+                  value={
+                    REPORT_TYPES.balance
+                  }
+                >
+                  Bilanço
+                </option>
+
+                <option
+                  value={
+                    REPORT_TYPES.reconciliation
+                  }
+                >
+                  Mutabakat
+                </option>
+              </select>
+            </div>
+
+            {reportType !==
+              REPORT_TYPES.reconciliation && (
+              <>
+                {reportType !==
+                  REPORT_TYPES.balance && (
+                  <div className="col-md-4 col-lg-3">
+                    <label className="form-label">
+                      Başlangıç
+                    </label>
+
+                    <input
+                      type="date"
+                      className="form-control"
+                      min={
+                        activePeriod.startDate
+                      }
+                      max={
+                        activePeriod.endDate
+                      }
+                      value={from}
+                      onChange={(event) =>
+                        setFrom(
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </div>
+                )}
+
+                <div className="col-md-4 col-lg-3">
+                  <label className="form-label">
+                    Bitiş
+                  </label>
+
+                  <input
+                    type="date"
+                    className="form-control"
+                    min={
+                      activePeriod.startDate
+                    }
+                    max={
+                      activePeriod.endDate
+                    }
+                    value={to}
+                    onChange={(event) =>
+                      setTo(
+                        event.target.value,
+                      )
+                    }
+                  />
+                </div>
+              </>
+            )}
+
+            <div className="col-lg-2">
+              <button
+                type="button"
+                className="btn btn-primary w-100"
+                onClick={loadReport}
+                disabled={
+                  status === "loading"
+                }
+              >
+                Raporla
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {error && (
+        <div className="alert alert-danger">
+          {error}
+        </div>
+      )}
+
+      {status === "loading" ? (
+        <div className="text-center py-5">
+          <div
+            className="spinner-border"
+            role="status"
+          />
+
+          <p className="mt-3">
+            Rapor hazırlanıyor…
+          </p>
+        </div>
+      ) : data ? (
+        <>
+          {reportType ===
+            REPORT_TYPES.trial && (
+            <TrialBalance data={data} />
+          )}
+
+          {reportType ===
+            REPORT_TYPES.vat && (
+            <VatSummary data={data} />
+          )}
+
+          {reportType ===
+            REPORT_TYPES.income && (
+            <IncomeStatement data={data} />
+          )}
+
+          {reportType ===
+            REPORT_TYPES.balance && (
+            <BalanceSheet data={data} />
+          )}
+
+          {reportType ===
+            REPORT_TYPES.reconciliation && (
+            <Reconciliation data={data} />
+          )}
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+function TrialBalance({ data }) {
+  if (!data.length) {
+    return (
+      <div className="alert alert-light border">
+        Seçilen dönemde muhasebe hareketi
+        bulunmuyor.
+      </div>
+    );
+  }
+
+  const debit = data.reduce(
+    (sum, item) =>
+      sum + Number(item.debit),
+    0,
+  );
+
+  const credit = data.reduce(
+    (sum, item) =>
+      sum + Number(item.credit),
+    0,
   );
 
   return (
-    <section
-      className='container py-4 reports-page'
-      aria-labelledby='reportsTitle'
-    >
-      <header className='d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4'>
-        <div>
-          <h1 className='h3' id='reportsTitle'>
-            Raporlar
-          </h1>
-          <p className='text-body-secondary mb-0'>
-            Gelir, gider ve bakiyenin zaman içindeki değişimini incele.
-          </p>
-        </div>
-        <div
-          className='d-flex flex-wrap gap-2'
-          aria-label='Rapor indirme seçenekleri'
+    <div className="card">
+      <div className="card-header">
+        <h2 className="h5 mb-0">
+          Mizan
+        </h2>
+      </div>
+
+      <div className="table-responsive">
+        <table className="table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Kod</th>
+              <th>Hesap</th>
+
+              <th className="text-end">
+                Borç
+              </th>
+
+              <th className="text-end">
+                Alacak
+              </th>
+
+              <th className="text-end">
+                Borç Bakiyesi
+              </th>
+
+              <th className="text-end">
+                Alacak Bakiyesi
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {data.map((row) => (
+              <tr key={row.accountId}>
+                <td>
+                  <code>{row.code}</code>
+                </td>
+
+                <td>{row.name}</td>
+
+                <td className="text-end">
+                  {money(row.debit)}
+                </td>
+
+                <td className="text-end">
+                  {money(row.credit)}
+                </td>
+
+                <td className="text-end">
+                  {money(
+                    row.debitBalance,
+                  )}
+                </td>
+
+                <td className="text-end">
+                  {money(
+                    row.creditBalance,
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+
+          <tfoot>
+            <tr className="fw-bold">
+              <td colSpan={2}>
+                Toplam
+              </td>
+
+              <td className="text-end">
+                {money(debit)}
+              </td>
+
+              <td className="text-end">
+                {money(credit)}
+              </td>
+
+              <td colSpan={2}></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div className="card-footer">
+        <span
+          className={`badge ${
+            Math.abs(debit - credit) <
+            0.01
+              ? "text-bg-success"
+              : "text-bg-danger"
+          }`}
         >
-          {[
-            ["csv", "CSV"],
-            ["xlsx", "Excel (.xlsx)"],
-            ["pdf", "PDF"],
-          ].map(([format, label]) => (
-            <button
-              key={format}
-              type='button'
-              className='btn btn-outline-primary btn-sm'
-              disabled={status !== "success" || Boolean(exporting)}
-              onClick={() => downloadReport(format)}
-            >
-              <i className='bi bi-download me-1' aria-hidden='true' />
-              {exporting === format ? "Hazırlanıyor…" : `${label} indir`}
-            </button>
-          ))}
-        </div>
-      </header>
-      {exportError && (
-        <p className='alert alert-danger' role='alert'>
-          {exportError}
-        </p>
-      )}
-      {exportStatus && (
-        <p className='alert alert-success' role='status'>
-          {exportStatus}
-        </p>
-      )}
-      <form
-        className='card card-body mb-4'
-        onSubmit={applyFilters}
-        aria-label='Rapor filtreleri'
-      >
-        <fieldset disabled={Boolean(exporting)}>
-          <legend className='h6'>Rapor kapsamı</legend>
-          <div className='row g-3 align-items-end'>
-            <div className='col-sm-6 col-lg-3'>
-              <label className='form-label' htmlFor='reportFrom'>
-                Başlangıç tarihi
-              </label>
-              <input
-                id='reportFrom'
-                type='date'
-                className='form-control'
-                value={draft.from}
-                onChange={(event) => updateDraft("from", event.target.value)}
-              />
-            </div>
-            <div className='col-sm-6 col-lg-3'>
-              <label className='form-label' htmlFor='reportTo'>
-                Bitiş tarihi
-              </label>
-              <input
-                id='reportTo'
-                type='date'
-                className='form-control'
-                value={draft.to}
-                onChange={(event) => updateDraft("to", event.target.value)}
-              />
-            </div>
-            <div className='col-sm-6 col-lg-3'>
-              <label className='form-label' htmlFor='reportType'>
-                Kategori raporu türü
-              </label>
-              <select
-                id='reportType'
-                className='form-select'
-                value={draft.type}
-                onChange={(event) => updateDraft("type", event.target.value)}
-              >
-                <option value=''>Gelir ve gider</option>
-                <option value={EntryType.Income}>Gelir</option>
-                <option value={EntryType.Expense}>Gider</option>
-              </select>
-            </div>
-            <div className='col-sm-6 col-lg-3'>
-              <label className='form-label' htmlFor='reportYear'>
-                Aylık rapor yılı
-              </label>
-              <input
-                id='reportYear'
-                type='number'
-                min='1'
-                max='9999'
-                step='1'
-                required
-                className='form-control'
-                value={draft.year}
-                onChange={(event) => updateDraft("year", event.target.value)}
-              />
-            </div>
+          Fark:{" "}
+          {money(debit - credit)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function VatSummary({ data }) {
+  return (
+    <div className="row g-4">
+      <ReportCard
+        title="İndirilecek KDV"
+        value={data.inputVat}
+      />
+
+      <ReportCard
+        title="Hesaplanan KDV"
+        value={data.outputVat}
+      />
+
+      <ReportCard
+        title="Net KDV"
+        value={data.netVat}
+      />
+
+      <div className="col-12">
+        <div className="card">
+          <div className="card-header">
+            <h2 className="h5 mb-0">
+              KDV Mutabakatı
+            </h2>
           </div>
-          <p className='form-text mt-3'>
-            Tarih aralığı özet ve kategori raporlarını etkiler. Aylık
-            karşılaştırma seçilen yılın tamamını gösterir. Tür seçimi yalnızca
-            kategori raporunu etkiler.
-          </p>
-          <div className='d-flex gap-2'>
-            <button className='btn btn-primary' type='submit'>
-              Uygula
-            </button>
-            <button
-              className='btn btn-outline-secondary'
-              type='button'
-              onClick={resetFilters}
-            >
-              Sıfırla
-            </button>
-          </div>
-          {filterError && (
-            <p className='text-danger mt-3 mb-0' role='alert'>
-              {filterError}
-            </p>
-          )}
-        </fieldset>
-      </form>
-      {status === "loading" ? (
-        <p className='text-center py-5' role='status'>
-          <span
-            className='spinner-border spinner-border-sm me-2'
-            aria-hidden='true'
-          />
-          Raporlar yükleniyor…
-        </p>
-      ) : status === "error" ? (
-        <div className='alert alert-danger' role='alert'>
-          <p>Raporlar yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.</p>
-          <button
-            type='button'
-            className='btn btn-outline-danger btn-sm'
-            onClick={() => {
-              setStatus("loading");
-              setRefreshKey((previous) => previous + 1);
-            }}
-          >
-            Tekrar dene
-          </button>
-        </div>
-      ) : (
-        <>
-          <h2 className='h5'>Genel özet</h2>
-          <p className='text-body-secondary small'>{sections[0].scope}</p>
-          <SummaryCards summary={data.summary} />
-          {data.summary.transactionCount === 0 && (
-            <p className='alert alert-light border'>
-              Seçilen tarih aralığında işlem bulunmuyor.
-            </p>
-          )}
-          <div className='row g-4'>
-            <div className='col-lg-7'>
-              <article className='card h-100'>
-                <div className='card-body'>
-                  <h2 className='h5'>Aylık karşılaştırma</h2>
-                  <p className='small text-body-secondary'>
-                    {filters.year} yılı · Gelir, gider ve bakiye
-                  </p>
-                  {hasMonthlyData ? (
-                    <ReportChart
-                      ref={monthlyChart}
-                      option={monthlyChartOption(data.monthly)}
-                      label={`${filters.year} yılı aylık gelir, gider ve bakiye grafiği. Değerler aşağıdaki tabloda.`}
-                    />
-                  ) : (
-                    <p className='report-empty'>
-                      Seçilen yılda işlem bulunmuyor.
-                    </p>
+
+          <div className="card-body">
+            <div className="row g-3">
+              <div className="col-md-6">
+                <strong>
+                  İndirilecek KDV Farkı
+                </strong>
+
+                <div
+                  className={
+                    Number(
+                      data.inputDifference,
+                    ) === 0
+                      ? "text-success"
+                      : "text-danger"
+                  }
+                >
+                  {money(
+                    data.inputDifference,
                   )}
-                  <ReportTable section={sections[2]} />
                 </div>
-              </article>
-            </div>
-            <div className='col-lg-5'>
-              <article className='card h-100'>
-                <div className='card-body'>
-                  <h2 className='h5'>Kategori dağılımı</h2>
-                  <p className='small text-body-secondary'>
-                    {sections[1].scope}
-                  </p>
-                  {data.categories.some((item) => item.total > 0) ? (
-                    <ReportChart
-                      ref={categoryChart}
-                      option={categoryChartOption(data.categories)}
-                      label='Kategori toplamlarının dağılımı. Değerler aşağıdaki tabloda.'
-                    />
-                  ) : (
-                    <p className='report-empty'>
-                      Bu kapsamda kategori verisi bulunmuyor.
-                    </p>
+              </div>
+
+              <div className="col-md-6">
+                <strong>
+                  Hesaplanan KDV Farkı
+                </strong>
+
+                <div
+                  className={
+                    Number(
+                      data.outputDifference,
+                    ) === 0
+                      ? "text-success"
+                      : "text-danger"
+                  }
+                >
+                  {money(
+                    data.outputDifference,
                   )}
-                  <ReportTable section={sections[1]} />
                 </div>
-              </article>
+              </div>
             </div>
           </div>
-          <p className='small text-body-secondary mt-3 mb-0'>
-            İndirilen dosyalar uygulanan filtrelerdeki özet, kategori ve aylık
-            rapor verilerini içerir. Özet dönemi: {dateRangeLabel(filters)}.
-          </p>
-        </>
-      )}
-    </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function IncomeStatement({ data }) {
+  return (
+    <div className="row g-4">
+      <ReportCard
+        title="Gelirler"
+        value={data.income}
+      />
+
+      <ReportCard
+        title="Giderler"
+        value={data.expense}
+      />
+
+      <ReportCard
+        title={
+          Number(data.result) >= 0
+            ? "Dönem Kârı"
+            : "Dönem Zararı"
+        }
+        value={Math.abs(
+          Number(data.result),
+        )}
+      />
+    </div>
+  );
+}
+
+function BalanceSheet({ data }) {
+  return (
+    <>
+      <div className="row g-4">
+        <ReportCard
+          title="Varlıklar"
+          value={data.assets}
+        />
+
+        <ReportCard
+          title="Yükümlülükler"
+          value={data.liabilities}
+        />
+
+        <ReportCard
+          title="Özkaynak"
+          value={data.equity}
+        />
+      </div>
+
+      <div className="card mt-4">
+        <div className="card-body d-flex flex-wrap justify-content-between gap-3">
+          <div>
+            <div className="text-body-secondary">
+              Kapanmamış Dönem Sonucu
+            </div>
+
+            <strong>
+              {money(
+                data.currentUnclosedResult,
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <div className="text-body-secondary">
+              Bilanço Farkı
+            </div>
+
+            <strong
+              className={
+                Math.abs(
+                  Number(data.difference),
+                ) < 0.01
+                  ? "text-success"
+                  : "text-danger"
+              }
+            >
+              {money(data.difference)}
+            </strong>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function Reconciliation({ data }) {
+  if (!data.length) {
+    return (
+      <div className="alert alert-light border">
+        Mutabakat kontrolü bulunmuyor.
+      </div>
+    );
+  }
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <h2 className="h5 mb-0">
+          Sistem Mutabakatı
+        </h2>
+      </div>
+
+      <div className="table-responsive">
+        <table className="table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Kontrol</th>
+
+              <th className="text-end">
+                Beklenen
+              </th>
+
+              <th className="text-end">
+                Gerçekleşen
+              </th>
+
+              <th>Sonuç</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {data.map(
+              (item, index) => (
+                <tr key={index}>
+                  <td>{item.name}</td>
+
+                  <td className="text-end">
+                    {money(
+                      item.expected,
+                    )}
+                  </td>
+
+                  <td className="text-end">
+                    {money(
+                      item.actual,
+                    )}
+                  </td>
+
+                  <td>
+                    {item.passed ? (
+                      <span className="badge text-bg-success">
+                        Başarılı
+                      </span>
+                    ) : (
+                      <span className="badge text-bg-danger">
+                        Fark Var
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ),
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function ReportCard({ title, value }) {
+  return (
+    <div className="col-md-4">
+      <div className="card h-100">
+        <div className="card-body">
+          <div className="text-body-secondary">
+            {title}
+          </div>
+
+          <div className="fs-3 fw-bold mt-2">
+            {money(value)} ₺
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
