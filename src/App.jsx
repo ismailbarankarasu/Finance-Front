@@ -5,8 +5,6 @@ import { LayoutPage } from "./layouts/LayoutPage";
 import { HomePage } from "./pages/Home/HomePage";
 import { createBrowserRouter, RouterProvider } from "react-router";
 import ProtectedRoute from "./components/ProtectedRoute";
-import CategoryPage from "./pages/Category/CategoryPage";
-import { TransactionPage } from "./pages/Transaction/TransactionPage";
 import CompaniesPage from "./pages/Companies/CompaniesPage";
 import PeriodsPage from "./pages/Periods/PeriodsPage";
 import AccountsPage from "./pages/Accounts/AccountsPage";
@@ -19,6 +17,7 @@ import TreasuryPage from "./pages/Treasury/TreasuryPage";
 import PaymentsPage from "./pages/Payments/PaymentsPage";
 import TransfersPage from "./pages/Transfers/TransfersPage";
 import AdministrationPage from "./pages/Administration/AdministrationPage";
+import ClosingPage from "./pages/Closing/ClosingPage";
 
 const ReportsPage = lazy(() => import("./pages/Reports/ReportsPage"));
 
@@ -31,8 +30,6 @@ const routes = createBrowserRouter([
     ),
     children: [
       { path: "/", Component: HomePage },
-      { path: "/categories", Component: CategoryPage },
-      { path: "/transactions", Component: TransactionPage },
       { path: "/companies", Component: CompaniesPage },
       { path: "/periods", Component: PeriodsPage },
       { path: "/accounts", Component: AccountsPage },
@@ -45,6 +42,7 @@ const routes = createBrowserRouter([
       { path: "/payments", Component: PaymentsPage },
       { path: "/transfers", Component: TransfersPage },
       { path: "/administration", Component: AdministrationPage },
+      { path: "/closing", Component: ClosingPage },
       {
         path: "/reports",
         element: (
@@ -62,9 +60,35 @@ const routes = createBrowserRouter([
       {
         path: "*",
         element: (
-          <div className='container py-5'>
-            <h1 className='h4'>Sayfa bulunamadı</h1>
-            <p>Üst menüden bir sayfa seçebilirsiniz.</p>
+          <div className='container-fluid px-lg-4 py-5'>
+            <div
+              className='card border-0 shadow-sm mx-auto'
+              style={{ maxWidth: 560 }}
+            >
+              <div className='card-body text-center py-5'>
+                <div
+                  className='rounded-circle bg-primary-subtle text-primary d-inline-flex align-items-center justify-content-center mb-4'
+                  style={{
+                    width: 72,
+                    height: 72,
+                  }}
+                >
+                  <i className='bi bi-compass fs-2' />
+                </div>
+
+                <h1 className='h4'>Sayfa bulunamadı</h1>
+
+                <p className='text-body-secondary'>
+                  Aradığınız sayfa kaldırılmış, taşınmış veya mevcut
+                  olmayabilir.
+                </p>
+
+                <a href='/' className='btn btn-primary'>
+                  <i className='bi bi-house me-2' />
+                  Dashboard'a Dön
+                </a>
+              </div>
+            </div>
           </div>
         ),
       },

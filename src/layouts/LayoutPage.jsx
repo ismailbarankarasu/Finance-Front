@@ -1,12 +1,49 @@
+import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router";
+
 import { useAuth } from "../context/useAuth";
 import { useAccounting } from "../context/useAccounting";
-import { companyRoleLabel } from "../utils/accounting";
 
-function navLinkClassName({ isActive }) {
-  return `nav-link rounded px-3 ${
-    isActive ? "active bg-white text-primary fw-semibold" : "text-white"
-  }`;
+import { CompanyRole, companyRoleLabel } from "../utils/accounting";
+
+import "./layout.css";
+
+function NavigationItem({
+  to,
+  icon,
+  children,
+  end = false,
+  onNavigate,
+}) {
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      onClick={onNavigate}
+      className={({ isActive }) =>
+        [
+          "app-nav-link",
+          isActive ? "active" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")
+      }
+    >
+      <i className={`bi ${icon}`} aria-hidden='true' />
+
+      <span>{children}</span>
+    </NavLink>
+  );
+}
+
+function NavigationSection({ title, children }) {
+  return (
+    <div className='app-nav-section'>
+      <div className='app-nav-title'>{title}</div>
+
+      {children}
+    </div>
+  );
 }
 
 export function LayoutPage() {
@@ -31,8 +68,21 @@ export function LayoutPage() {
 
   const navigate = useNavigate();
 
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   const displayName =
     user?.username || user?.fullName || user?.email || "Kullanıcı";
+
+  const role = activeCompany?.role;
+
+  const canManageAccounting =
+    role === CompanyRole.Admin || role === CompanyRole.Accountant;
+
+  const canOpenAdministration = canManageAccounting;
+
+  function closeSidebar() {
+    setSidebarOpen(false);
+  }
 
   function handleLogout() {
     logout();
@@ -43,168 +93,226 @@ export function LayoutPage() {
   }
 
   function handleCompanyChange(event) {
-    const companyId = event.target.value;
-
-    setActiveCompanyId(companyId);
+    setActiveCompanyId(event.target.value);
   }
 
   function handlePeriodChange(event) {
-    const periodId = event.target.value;
-
-    setActivePeriodId(periodId);
+    setActivePeriodId(event.target.value);
   }
 
   return (
-    <>
-      <nav className='navbar navbar-expand-xl bg-primary' data-bs-theme='dark'>
-        <div className='container-fluid px-lg-4'>
-          <NavLink className='navbar-brand text-white fw-bold' to='/'>
-            <i className='bi bi-calculator me-2' aria-hidden='true'></i>
-            Finans Muhasebe
-          </NavLink>
+    <div className='app-shell'>
+      {sidebarOpen && (
+        <button
+          type='button'
+          className='app-sidebar-backdrop border-0'
+          aria-label='Menüyü kapat'
+          onClick={closeSidebar}
+        />
+      )}
 
-          <button
-            className='navbar-toggler'
-            type='button'
-            data-bs-toggle='collapse'
-            data-bs-target='#navbarMain'
-            aria-controls='navbarMain'
-            aria-expanded='false'
-            aria-label='Menüyü aç veya kapat'
-          >
-            <span className='navbar-toggler-icon'></span>
-          </button>
+      <aside className={`app-sidebar ${sidebarOpen ? "app-sidebar-open" : ""}`}>
+        <NavLink to='/' className='app-sidebar-brand' onClick={closeSidebar}>
+          <span className='app-sidebar-brand-icon'>
+            <i className='bi bi-calculator' />
+          </span>
 
-          <div className='collapse navbar-collapse' id='navbarMain'>
-            <ul className='navbar-nav me-auto gap-lg-1'>
-              <li className='nav-item'>
-                <NavLink className={navLinkClassName} to='/' end>
-                  Ana Sayfa
-                </NavLink>
-              </li>
+          <span>
+            <span className='app-sidebar-title'>Finans Muhasebe</span>
 
-              <li className='nav-item'>
-                <NavLink className={navLinkClassName} to='/transactions'>
-                  İşlemler
-                </NavLink>
-              </li>
+            <span className='app-sidebar-subtitle'>Ön Muhasebe Sistemi</span>
+          </span>
+        </NavLink>
 
-              <li className='nav-item'>
-                <NavLink className={navLinkClassName} to='/categories'>
-                  Kategoriler
-                </NavLink>
-              </li>
+        <nav className='app-sidebar-nav'>
+          <NavigationSection title='Genel'>
+            <NavigationItem
+              to='/'
+              icon='bi-grid-1x2-fill'
+              end
+              onNavigate={closeSidebar}
+            >
+              Ana Sayfa
+            </NavigationItem>
+          </NavigationSection>
 
-              <li className='nav-item'>
-                <NavLink className={navLinkClassName} to='/reports'>
-                  Raporlar
-                </NavLink>
-              </li>
+          <NavigationSection title='Muhasebe'>
+            <NavigationItem
+              to='/accounts'
+              icon='bi-diagram-3'
+              onNavigate={closeSidebar}
+            >
+              Hesap Planı
+            </NavigationItem>
 
-              <li className='nav-item'>
-                <NavLink className={navLinkClassName} to='/companies'>
-                  Şirketler
-                </NavLink>
-              </li>
+            <NavigationItem
+              to='/journal'
+              icon='bi-journal-text'
+              onNavigate={closeSidebar}
+            >
+              Yevmiye
+            </NavigationItem>
 
-              <li className='nav-item'>
-                <NavLink className={navLinkClassName} to='/periods'>
-                  Mali Dönemler
-                </NavLink>
-              </li>
-              <li className='nav-item'>
-                <NavLink className={navLinkClassName} to='/accounts'>
-                  Hesap Planı
-                </NavLink>
-              </li>
+            <NavigationItem
+              to='/counterparties'
+              icon='bi-people'
+              onNavigate={closeSidebar}
+            >
+              Cariler
+            </NavigationItem>
+          </NavigationSection>
 
-              <li className='nav-item'>
-                <NavLink className={navLinkClassName} to='/journal'>
-                  Yevmiye
-                </NavLink>
-              </li>
-              <li className='nav-item'>
-                <NavLink className={navLinkClassName} to='/counterparties'>
-                  Cariler
-                </NavLink>
-              </li>
-              <li className='nav-item'>
-                <NavLink className={navLinkClassName} to='/products'>
-                  Ürün & Stok
-                </NavLink>
-              </li>
-              <li className='nav-item'>
-                <NavLink className={navLinkClassName} to='/inventory'>
-                  Stok
-                </NavLink>
-              </li>
-              <li className='nav-item'>
-                <NavLink className={navLinkClassName} to='/invoices'>
-                  Faturalar
-                </NavLink>
-              </li>
-              <li className='nav-item'>
-                <NavLink className={navLinkClassName} to='/treasury'>
-                  Kasa / Banka
-                </NavLink>
-              </li>
+          <NavigationSection title='Satış & Stok'>
+            <NavigationItem
+              to='/products'
+              icon='bi-box-seam'
+              onNavigate={closeSidebar}
+            >
+              Ürünler
+            </NavigationItem>
 
-              <li className='nav-item'>
-                <NavLink className={navLinkClassName} to='/payments'>
-                  Tahsilat / Ödeme
-                </NavLink>
-              </li>
-              <li className='nav-item'>
-                <NavLink className={navLinkClassName} to='/transfers'>
-                  Virman
-                </NavLink>
-              </li>
-              {(activeCompany?.role === 1 || activeCompany?.role === 2) && (
-                <li className='nav-item'>
-                  <NavLink className={navLinkClassName} to='/administration'>
-                    Yönetim
-                  </NavLink>
-                </li>
-              )}
-            </ul>
+            <NavigationItem
+              to='/inventory'
+              icon='bi-boxes'
+              onNavigate={closeSidebar}
+            >
+              Stok
+            </NavigationItem>
 
-            <div className='d-flex align-items-center gap-3'>
-              <span className='navbar-text text-white text-nowrap'>
-                <i className='bi bi-person-circle me-2' aria-hidden='true'></i>
+            <NavigationItem
+              to='/invoices'
+              icon='bi-receipt'
+              onNavigate={closeSidebar}
+            >
+              Faturalar
+            </NavigationItem>
+          </NavigationSection>
 
-                {displayName}
-              </span>
+          <NavigationSection title='Finans'>
+            <NavigationItem
+              to='/treasury'
+              icon='bi-bank'
+              onNavigate={closeSidebar}
+            >
+              Kasa / Banka
+            </NavigationItem>
 
-              <button
-                className='btn btn-outline-light btn-sm text-nowrap'
-                type='button'
-                onClick={handleLogout}
+            <NavigationItem
+              to='/payments'
+              icon='bi-cash-stack'
+              onNavigate={closeSidebar}
+            >
+              Tahsilat / Ödeme
+            </NavigationItem>
+
+            <NavigationItem
+              to='/transfers'
+              icon='bi-arrow-left-right'
+              onNavigate={closeSidebar}
+            >
+              Virman
+            </NavigationItem>
+          </NavigationSection>
+
+          <NavigationSection title='Raporlama'>
+            <NavigationItem
+              to='/reports'
+              icon='bi-bar-chart-line'
+              onNavigate={closeSidebar}
+            >
+              Mali Raporlar
+            </NavigationItem>
+
+            {canManageAccounting && (
+              <NavigationItem
+                to='/closing'
+                icon='bi-calendar-check'
+                onNavigate={closeSidebar}
               >
-                <i
-                  className='bi bi-box-arrow-right me-1'
-                  aria-hidden='true'
-                ></i>
-                Çıkış
-              </button>
+                Dönem Kapanışı
+              </NavigationItem>
+            )}
+          </NavigationSection>
+
+          <NavigationSection title='Yönetim'>
+            <NavigationItem
+              to='/companies'
+              icon='bi-buildings'
+              onNavigate={closeSidebar}
+            >
+              Şirketler
+            </NavigationItem>
+
+            <NavigationItem
+              to='/periods'
+              icon='bi-calendar3'
+              onNavigate={closeSidebar}
+            >
+              Mali Dönemler
+            </NavigationItem>
+
+            {canOpenAdministration && (
+              <NavigationItem
+                to='/administration'
+                icon='bi-shield-lock'
+                onNavigate={closeSidebar}
+              >
+                Yönetim Merkezi
+              </NavigationItem>
+            )}
+          </NavigationSection>
+
+        </nav>
+
+        <div className='app-sidebar-footer'>
+          <div className='app-sidebar-user'>
+            <div className='app-sidebar-avatar'>
+              <i className='bi bi-person-fill' />
             </div>
+
+            <div className='flex-grow-1 overflow-hidden'>
+              <div className='app-sidebar-user-name'>{displayName}</div>
+
+              <div className='app-sidebar-user-role'>
+                {activeCompany
+                  ? companyRoleLabel(activeCompany.role)
+                  : "Kullanıcı"}
+              </div>
+            </div>
+
+            <button
+              type='button'
+              className='btn btn-sm btn-outline-light'
+              title='Çıkış yap'
+              aria-label='Çıkış yap'
+              onClick={handleLogout}
+            >
+              <i className='bi bi-box-arrow-right' />
+            </button>
           </div>
         </div>
-      </nav>
+      </aside>
 
-      <section className='border-bottom bg-body-tertiary'>
-        <div className='container-fluid px-lg-4 py-3'>
-          <div className='row g-3 align-items-end'>
-            <div className='col-md-5 col-lg-4'>
-              <label
-                htmlFor='activeCompany'
-                className='form-label small fw-semibold mb-1'
-              >
+      <div className='app-content-wrapper'>
+        <header className='app-topbar'>
+          <div className='app-topbar-inner'>
+            <button
+              type='button'
+              className='btn btn-outline-secondary app-mobile-menu-button'
+              aria-label='Menüyü aç'
+              onClick={() => setSidebarOpen(true)}
+            >
+              <i className='bi bi-list' />
+            </button>
+
+            <div className='app-context-select app-context-select-company'>
+              <label htmlFor='activeCompany' className='app-context-label'>
                 Aktif Şirket
               </label>
 
               <select
                 id='activeCompany'
-                className='form-select'
+                className='form-select form-select-sm'
                 value={activeCompanyId ?? ""}
                 onChange={handleCompanyChange}
                 disabled={
@@ -222,23 +330,20 @@ export function LayoutPage() {
                     disabled={!company.isActive}
                   >
                     {company.name}
-                    {!company.isActive ? " (Pasif)" : ""}
+                    {!company.isActive ? " — Pasif" : ""}
                   </option>
                 ))}
               </select>
             </div>
 
-            <div className='col-md-5 col-lg-4'>
-              <label
-                htmlFor='activePeriod'
-                className='form-label small fw-semibold mb-1'
-              >
+            <div className='app-context-select'>
+              <label htmlFor='activePeriod' className='app-context-label'>
                 Aktif Mali Dönem
               </label>
 
               <select
                 id='activePeriod'
-                className='form-select'
+                className='form-select form-select-sm'
                 value={activePeriodId ?? ""}
                 onChange={handlePeriodChange}
                 disabled={
@@ -254,42 +359,45 @@ export function LayoutPage() {
                 {periods.map((period) => (
                   <option key={period.id} value={period.id}>
                     {period.name}
+
                     {period.status === 2 ? " — Kilitli" : ""}
                   </option>
                 ))}
               </select>
             </div>
 
-            <div className='col-md-2 col-lg-4'>
+            <div className='app-topbar-status'>
               {activeCompany && (
-                <div className='d-flex flex-wrap gap-2'>
-                  <span className='badge text-bg-primary'>
-                    {companyRoleLabel(activeCompany.role)}
-                  </span>
+                <span className='badge text-bg-primary'>
+                  {companyRoleLabel(activeCompany.role)}
+                </span>
+              )}
 
-                  {activePeriod && (
-                    <span
-                      className={`badge ${
-                        activePeriod.status === 1
-                          ? "text-bg-success"
-                          : "text-bg-secondary"
-                      }`}
-                    >
-                      {activePeriod.status === 1
-                        ? "Dönem Açık"
-                        : "Dönem Kilitli"}
-                    </span>
-                  )}
-                </div>
+              {activePeriod && (
+                <span
+                  className={`badge ${
+                    activePeriod.status === 1
+                      ? "text-bg-success"
+                      : "text-bg-secondary"
+                  }`}
+                >
+                  <i
+                    className={`bi ${
+                      activePeriod.status === 1 ? "bi-unlock" : "bi-lock"
+                    } me-1`}
+                  />
+
+                  {activePeriod.status === 1 ? "Dönem Açık" : "Dönem Kilitli"}
+                </span>
               )}
             </div>
           </div>
-        </div>
-      </section>
+        </header>
 
-      <main>
-        <Outlet />
-      </main>
-    </>
+        <main className='app-content'>
+          <Outlet />
+        </main>
+      </div>
+    </div>
   );
 }

@@ -1,0 +1,260 @@
+:root {
+  --app-sidebar-width: 270px;
+  --app-topbar-height: 76px;
+}
+
+.app-shell {
+  min-height: 100vh;
+  background: #f6f8fb;
+}
+
+.app-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--app-sidebar-width);
+  z-index: 1040;
+  display: flex;
+  flex-direction: column;
+  background: #111827;
+  color: #fff;
+  overflow-y: auto;
+  transition: transform 0.25s ease;
+}
+
+.app-sidebar-brand {
+  min-height: var(--app-topbar-height);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 22px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: #fff;
+  text-decoration: none;
+}
+
+.app-sidebar-brand:hover {
+  color: #fff;
+}
+
+.app-sidebar-brand-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: #0d6efd;
+  font-size: 18px;
+}
+
+.app-sidebar-title {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.app-sidebar-subtitle {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: #9ca3af;
+}
+
+.app-sidebar-nav {
+  padding: 18px 12px 28px;
+}
+
+.app-nav-section {
+  margin-bottom: 18px;
+}
+
+.app-nav-title {
+  padding: 0 12px;
+  margin-bottom: 6px;
+  color: #6b7280;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.app-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  margin-bottom: 3px;
+  border-radius: 8px;
+  color: #cbd5e1;
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.app-nav-link i {
+  width: 20px;
+  text-align: center;
+  font-size: 1rem;
+}
+
+.app-nav-link:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.app-nav-link.active {
+  color: #fff;
+  background: #0d6efd;
+  font-weight: 600;
+}
+
+
+.app-sidebar-footer {
+  margin-top: auto;
+  padding: 16px 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.app-sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-sidebar-avatar {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(13, 110, 253, 0.2);
+  color: #60a5fa;
+}
+
+.app-sidebar-user-name {
+  overflow: hidden;
+  color: #fff;
+  font-size: 0.86rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-sidebar-user-role {
+  color: #9ca3af;
+  font-size: 0.72rem;
+}
+
+.app-content-wrapper {
+  min-height: 100vh;
+  margin-left: var(--app-sidebar-width);
+}
+
+.app-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1020;
+  min-height: var(--app-topbar-height);
+  display: flex;
+  align-items: center;
+  padding: 10px 24px;
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid #e5e7eb;
+  backdrop-filter: blur(8px);
+}
+
+.app-topbar-inner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.app-context-select {
+  min-width: 220px;
+}
+
+.app-context-select-company {
+  min-width: 280px;
+}
+
+.app-context-label {
+  display: block;
+  margin-bottom: 3px;
+  color: #6b7280;
+  font-size: 0.69rem;
+  font-weight: 600;
+}
+
+.app-context-select .form-select {
+  min-height: 37px;
+  font-size: 0.84rem;
+}
+
+.app-topbar-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+}
+
+.app-content {
+  min-height: calc(100vh - var(--app-topbar-height));
+}
+
+.app-mobile-menu-button {
+  display: none;
+}
+
+.app-sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 1199.98px) {
+  .app-sidebar {
+    transform: translateX(-100%);
+  }
+
+  .app-sidebar.app-sidebar-open {
+    transform: translateX(0);
+  }
+
+  .app-content-wrapper {
+    margin-left: 0;
+  }
+
+  .app-mobile-menu-button {
+    display: inline-flex;
+  }
+
+  .app-sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1035;
+    display: block;
+    background: rgba(15, 23, 42, 0.55);
+  }
+
+  .app-topbar {
+    padding-inline: 16px;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .app-topbar-inner {
+    flex-wrap: wrap;
+  }
+
+  .app-context-select,
+  .app-context-select-company {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .app-topbar-status {
+    margin-left: 0;
+  }
+}

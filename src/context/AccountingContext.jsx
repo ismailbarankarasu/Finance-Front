@@ -39,6 +39,8 @@ export function AccountingProvider({ children }) {
     try {
       const { data } = await api.get("/companies", { signal });
 
+      if (signal?.aborted) return;
+
       if (!Array.isArray(data)) {
         throw new Error("Şirket listesi geçersiz.");
       }
@@ -96,6 +98,8 @@ export function AccountingProvider({ children }) {
         signal,
       });
 
+      if (signal?.aborted) return;
+
       if (!Array.isArray(data)) {
         throw new Error("Mali dönem listesi geçersiz.");
       }
@@ -151,31 +155,44 @@ export function AccountingProvider({ children }) {
     }
   }, []);
 
-  useEffect(() => {
-    if (!isAuth || sessionStatus !== "success") {
+  const sessionReady = isAuth && sessionStatus === "success";
+  const [previousSessionReady, setPreviousSessionReady] = useState(sessionReady);
+  if (previousSessionReady !== sessionReady) {
+    setPreviousSessionReady(sessionReady);
+    if (!sessionReady) {
       setCompanies([]);
       setPeriods([]);
+    }
+  }
+
+  useEffect(() => {
+    if (!isAuth || sessionStatus !== "success") {
       return;
     }
 
     const controller = new AbortController();
 
-    loadCompanies(controller.signal);
+    const timeoutId = setTimeout(() => loadCompanies(controller.signal), 0);
 
-    return () => controller.abort();
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [isAuth, sessionStatus, loadCompanies]);
 
   useEffect(() => {
     if (!isAuth || sessionStatus !== "success" || !activeCompanyId) {
-      setPeriods([]);
       return;
     }
 
     const controller = new AbortController();
 
-    loadPeriods(activeCompanyId, controller.signal);
+    const timeoutId = setTimeout(() => loadPeriods(activeCompanyId, controller.signal), 0);
 
-    return () => controller.abort();
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [
     isAuth,
     sessionStatus,
@@ -188,6 +205,7 @@ export function AccountingProvider({ children }) {
 
     setActiveCompanyIdState(nextId);
     setActivePeriodIdState(null);
+    setPeriods([]);
 
     localStorage.removeItem(PERIOD_STORAGE_KEY);
 
