@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffectEvent, useEffect, useState } from "react";
 import api from "../../api/client";
 import { useAccounting } from "../../context/useAccounting";
 import {
@@ -31,8 +31,8 @@ export default function ReportsPage() {
   const [reportType, setReportType] =
     useState(REPORT_TYPES.trial);
 
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [from, setFrom] = useState(activePeriod?.startDate ?? "");
+  const [to, setTo] = useState(activePeriod?.endDate ?? "");
 
   const [data, setData] = useState(null);
 
@@ -48,16 +48,16 @@ export default function ReportsPage() {
     role === CompanyRole.Accountant ||
     role === CompanyRole.Reader;
 
-  useEffect(() => {
-    if (!activePeriod) return;
-
-    setFrom(activePeriod.startDate);
-    setTo(activePeriod.endDate);
-
+  const reportScope = JSON.stringify([activeCompanyId, activePeriodId, activePeriod?.startDate, activePeriod?.endDate]);
+  const [previousReportScope, setPreviousReportScope] = useState(reportScope);
+  if (previousReportScope !== reportScope) {
+    setPreviousReportScope(reportScope);
+    setFrom(activePeriod?.startDate ?? "");
+    setTo(activePeriod?.endDate ?? "");
     setData(null);
-  }, [activePeriodId]);
+  }
 
-  async function loadReport() {
+  async function loadReport(signal) {
     if (
       !activeCompanyId ||
       !activePeriodId
@@ -106,13 +106,17 @@ export default function ReportsPage() {
         `/companies/${activeCompanyId}/reports/${reportType}`,
         {
           params,
+          signal,
         },
       );
+
+      if (signal?.aborted) return;
 
       setData(data);
 
       setStatus("success");
     } catch (error) {
+      if (signal?.aborted) return;
       setStatus("error");
 
       setError(
@@ -121,6 +125,8 @@ export default function ReportsPage() {
       );
     }
   }
+
+  const loadForScope = useEffectEvent((signal) => loadReport(signal));
 
   useEffect(() => {
     if (
@@ -131,11 +137,17 @@ export default function ReportsPage() {
       return;
     }
 
-    loadReport();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => loadForScope(controller.signal), 0);
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [
     activeCompanyId,
     activePeriodId,
     reportType,
+    canReadReports,
   ]);
 
   async function downloadPdf() {
@@ -372,7 +384,7 @@ export default function ReportsPage() {
               <button
                 type="button"
                 className="btn btn-primary w-100"
-                onClick={loadReport}
+                onClick={() => loadReport()}
                 disabled={
                   status === "loading"
                 }

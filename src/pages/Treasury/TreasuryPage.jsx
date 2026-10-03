@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../../api/client";
 import { useAccounting } from "../../context/useAccounting";
 
@@ -7,6 +7,7 @@ import {
   TreasuryType,
   treasuryTypeLabel,
 } from "../../utils/accounting";
+import { EmptyState, PageLoading } from "../../components/PageState";
 
 const initialForm = {
   name: "",
@@ -24,22 +25,16 @@ function money(value) {
 }
 
 export default function TreasuryPage() {
-  const {
-    activeCompany,
-    activeCompanyId,
-    activePeriod,
-    activePeriodId,
-  } = useAccounting();
+  const { activeCompany, activeCompanyId, activePeriod, activePeriodId } =
+    useAccounting();
 
   const [accounts, setAccounts] = useState([]);
   const [treasuries, setTreasuries] = useState([]);
 
-  const [selectedTreasury, setSelectedTreasury] =
-    useState(null);
+  const [selectedTreasury, setSelectedTreasury] = useState(null);
 
   const [statement, setStatement] = useState(null);
-  const [reconciliation, setReconciliation] =
-    useState(null);
+  const [reconciliation, setReconciliation] = useState(null);
 
   const [form, setForm] = useState(initialForm);
 
@@ -49,8 +44,7 @@ export default function TreasuryPage() {
   const role = activeCompany?.role;
 
   const canManage =
-    role === CompanyRole.Admin ||
-    role === CompanyRole.Accountant;
+    role === CompanyRole.Admin || role === CompanyRole.Accountant;
 
   const suitableAccounts = useMemo(() => {
     return accounts.filter((account) => {
@@ -70,25 +64,20 @@ export default function TreasuryPage() {
     });
   }, [accounts, form.type]);
 
-  async function loadData(signal) {
+  const loadData = useCallback(async (signal) => {
     if (!activeCompanyId) return;
 
     setStatus("loading");
     setError("");
 
     try {
-      const [accountResponse, treasuryResponse] =
-        await Promise.all([
-          api.get(
-            `/companies/${activeCompanyId}/accounts`,
-            { signal },
-          ),
+      const [accountResponse, treasuryResponse] = await Promise.all([
+        api.get(`/companies/${activeCompanyId}/accounts`, { signal }),
 
-          api.get(
-            `/companies/${activeCompanyId}/treasury-accounts`,
-            { signal },
-          ),
-        ]);
+        api.get(`/companies/${activeCompanyId}/treasury-accounts`, { signal }),
+      ]);
+
+      if (signal?.aborted) return;
 
       setAccounts(accountResponse.data ?? []);
       setTreasuries(treasuryResponse.data ?? []);
@@ -100,21 +89,23 @@ export default function TreasuryPage() {
       setStatus("error");
 
       setError(
-        error.response?.data?.message ??
-          "Kasa/banka bilgileri yüklenemedi.",
+        error.response?.data?.message ?? "Kasa/banka bilgileri yüklenemedi.",
       );
     }
-  }
+  }, [activeCompanyId]);
 
   useEffect(() => {
     if (!activeCompanyId) return;
 
     const controller = new AbortController();
 
-    loadData(controller.signal);
+    const timeoutId = setTimeout(() => loadData(controller.signal), 0);
 
-    return () => controller.abort();
-  }, [activeCompanyId]);
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [activeCompanyId, loadData]);
 
   function updateForm(field, value) {
     setForm((previous) => ({
@@ -126,13 +117,8 @@ export default function TreasuryPage() {
   async function createTreasury(event) {
     event.preventDefault();
 
-    if (
-      !form.name.trim() ||
-      !form.ledgerAccountId
-    ) {
-      setError(
-        "Kasa/banka adı ve muhasebe hesabı zorunludur.",
-      );
+    if (!form.name.trim() || !form.ledgerAccountId) {
+      setError("Kasa/banka adı ve muhasebe hesabı zorunludur.");
 
       return;
     }
@@ -141,32 +127,27 @@ export default function TreasuryPage() {
     setError("");
 
     try {
-      await api.post(
-        `/companies/${activeCompanyId}/treasury-accounts`,
-        {
-          name: form.name.trim(),
+      await api.post(`/companies/${activeCompanyId}/treasury-accounts`, {
+        name: form.name.trim(),
 
-          type: Number(form.type),
+        type: Number(form.type),
 
-          ledgerAccountId: Number(
-            form.ledgerAccountId,
-          ),
+        ledgerAccountId: Number(form.ledgerAccountId),
 
-          bankName:
-            Number(form.type) === TreasuryType.Bank
-              ? form.bankName.trim() || null
-              : null,
+        bankName:
+          Number(form.type) === TreasuryType.Bank
+            ? form.bankName.trim() || null
+            : null,
 
-          iban:
-            Number(form.type) === TreasuryType.Bank
-              ? form.iban.trim() || null
-              : null,
+        iban:
+          Number(form.type) === TreasuryType.Bank
+            ? form.iban.trim() || null
+            : null,
 
-          isActive: true,
+        isActive: true,
 
-          version: 1,
-        },
-      );
+        version: 1,
+      });
 
       setForm(initialForm);
 
@@ -177,8 +158,7 @@ export default function TreasuryPage() {
       setStatus("error");
 
       setError(
-        error.response?.data?.message ??
-          "Kasa/banka hesabı oluşturulamadı.",
+        error.response?.data?.message ?? "Kasa/banka hesabı oluşturulamadı.",
       );
     }
   }
@@ -192,89 +172,76 @@ export default function TreasuryPage() {
     setError("");
 
     try {
-      const [statementResponse, reconciliationResponse] =
-        await Promise.all([
-          api.get(
-            `/companies/${activeCompanyId}/treasury-accounts/${treasury.id}/statement`,
-            {
-              params: {
-                periodId: activePeriodId,
-              },
+      const [statementResponse, reconciliationResponse] = await Promise.all([
+        api.get(
+          `/companies/${activeCompanyId}/treasury-accounts/${treasury.id}/statement`,
+          {
+            params: {
+              periodId: activePeriodId,
             },
-          ),
+          },
+        ),
 
-          api.get(
-            `/companies/${activeCompanyId}/treasury-accounts/${treasury.id}/reconciliation`,
-            {
-              params: {
-                periodId: activePeriodId,
-              },
+        api.get(
+          `/companies/${activeCompanyId}/treasury-accounts/${treasury.id}/reconciliation`,
+          {
+            params: {
+              periodId: activePeriodId,
             },
-          ),
-        ]);
+          },
+        ),
+      ]);
 
       setStatement(statementResponse.data);
 
-      setReconciliation(
-        reconciliationResponse.data,
-      );
+      setReconciliation(reconciliationResponse.data);
     } catch (error) {
       setError(
-        error.response?.data?.message ??
-          "Kasa/banka ekstresi alınamadı.",
+        error.response?.data?.message ?? "Kasa/banka ekstresi alınamadı.",
       );
     }
   }
 
   if (!activeCompany) {
     return (
-      <section className="container py-4">
-        <div className="alert alert-warning">
-          Kasa/banka hesapları için aktif
-          şirket seçmelisiniz.
+      <section className='container py-4'>
+        <div className='alert alert-warning'>
+          Kasa/banka hesapları için aktif şirket seçmelisiniz.
         </div>
       </section>
     );
   }
 
   return (
-    <section className="container-fluid px-lg-4 py-4">
-      <header className="mb-4">
-        <h1 className="h3">
-          Kasa ve Banka Yönetimi
-        </h1>
+    <section className='container-fluid px-lg-4 py-4'>
+      <header className='mb-4'>
+        <h1 className='h3'>Kasa ve Banka Yönetimi</h1>
 
-        <p className="text-body-secondary mb-0">
-          {activeCompany.name}
-        </p>
+        <p className='text-body-secondary mb-0'>{activeCompany.name}</p>
       </header>
 
-      {error && (
-        <div className="alert alert-danger">
-          {error}
-        </div>
-      )}
+      {error && <div className='alert alert-danger'>{error}</div>}
 
-      <div className="row g-4">
+      <div className='row g-4'>
         <div className={canManage ? "col-xl-8" : "col-12"}>
-          <div className="card">
-            <div className="card-header">
-              <h2 className="h5 mb-0">
-                Kasa / Banka Hesapları
-              </h2>
+          <div className='card'>
+            <div className='card-header'>
+              <h2 className='h5 mb-0'>Kasa / Banka Hesapları</h2>
             </div>
 
             {status === "loading" ? (
-              <div className="card-body">
-                Yükleniyor…
-              </div>
+              <PageLoading text='Kasa ve banka hesapları yükleniyor…' />
             ) : treasuries.length === 0 ? (
-              <div className="card-body">
-                Kasa veya banka hesabı bulunmuyor.
+              <div className='card-body'>
+                <EmptyState
+                  icon='bi-bank'
+                  title='Kasa / banka hesabı bulunmuyor'
+                  text='Bu şirket için henüz bir kasa veya banka hesabı tanımlanmamış.'
+                />
               </div>
             ) : (
-              <div className="table-responsive">
-                <table className="table table-hover align-middle mb-0">
+              <div className='table-responsive'>
+                <table className='table table-hover align-middle mb-0'>
                   <thead>
                     <tr>
                       <th>Hesap</th>
@@ -289,23 +256,13 @@ export default function TreasuryPage() {
                   <tbody>
                     {treasuries.map((treasury) => (
                       <tr key={treasury.id}>
-                        <td className="fw-semibold">
-                          {treasury.name}
-                        </td>
+                        <td className='fw-semibold'>{treasury.name}</td>
 
-                        <td>
-                          {treasuryTypeLabel(
-                            treasury.type,
-                          )}
-                        </td>
+                        <td>{treasuryTypeLabel(treasury.type)}</td>
 
-                        <td>
-                          {treasury.bankName || "—"}
-                        </td>
+                        <td>{treasury.bankName || "—"}</td>
 
-                        <td>
-                          {treasury.iban || "—"}
-                        </td>
+                        <td>{treasury.iban || "—"}</td>
 
                         <td>
                           <span
@@ -315,20 +272,16 @@ export default function TreasuryPage() {
                                 : "text-bg-secondary"
                             }`}
                           >
-                            {treasury.isActive
-                              ? "Aktif"
-                              : "Pasif"}
+                            {treasury.isActive ? "Aktif" : "Pasif"}
                           </span>
                         </td>
 
-                        <td className="text-end">
+                        <td className='text-end'>
                           <button
-                            type="button"
-                            className="btn btn-outline-primary btn-sm"
+                            type='button'
+                            className='btn btn-outline-primary btn-sm'
                             disabled={!activePeriodId}
-                            onClick={() =>
-                              loadStatement(treasury)
-                            }
+                            onClick={() => loadStatement(treasury)}
                           >
                             Ekstre
                           </button>
@@ -343,140 +296,100 @@ export default function TreasuryPage() {
         </div>
 
         {canManage && (
-          <div className="col-xl-4">
-            <div className="card">
-              <div className="card-header">
-                <h2 className="h5 mb-0">
-                  Yeni Kasa / Banka
-                </h2>
+          <div className='col-xl-4'>
+            <div className='card'>
+              <div className='card-header'>
+                <h2 className='h5 mb-0'>Yeni Kasa / Banka</h2>
               </div>
 
-              <div className="card-body">
+              <div className='card-body'>
                 <form onSubmit={createTreasury}>
-                  <div className="mb-3">
-                    <label className="form-label">
-                      Hesap Adı
-                    </label>
+                  <div className='mb-3'>
+                    <label className='form-label'>Hesap Adı</label>
 
                     <input
-                      className="form-control"
-                      placeholder="Örn. Ana Kasa"
+                      className='form-control'
+                      placeholder='Örn. Ana Kasa'
                       value={form.name}
                       onChange={(event) =>
-                        updateForm(
-                          "name",
-                          event.target.value,
-                        )
+                        updateForm("name", event.target.value)
                       }
                       required
                     />
                   </div>
 
-                  <div className="mb-3">
-                    <label className="form-label">
-                      Tür
-                    </label>
+                  <div className='mb-3'>
+                    <label className='form-label'>Tür</label>
 
                     <select
-                      className="form-select"
+                      className='form-select'
                       value={form.type}
                       onChange={(event) => {
-                        updateForm(
-                          "type",
-                          Number(event.target.value),
-                        );
+                        updateForm("type", Number(event.target.value));
 
-                        updateForm(
-                          "ledgerAccountId",
-                          "",
-                        );
+                        updateForm("ledgerAccountId", "");
                       }}
                     >
-                      <option value={TreasuryType.Cash}>
-                        Kasa
-                      </option>
+                      <option value={TreasuryType.Cash}>Kasa</option>
 
-                      <option value={TreasuryType.Bank}>
-                        Banka
-                      </option>
+                      <option value={TreasuryType.Bank}>Banka</option>
                     </select>
                   </div>
 
-                  <div className="mb-3">
-                    <label className="form-label">
-                      Muhasebe Hesabı
-                    </label>
+                  <div className='mb-3'>
+                    <label className='form-label'>Muhasebe Hesabı</label>
 
                     <select
-                      className="form-select"
+                      className='form-select'
                       value={form.ledgerAccountId}
                       onChange={(event) =>
-                        updateForm(
-                          "ledgerAccountId",
-                          event.target.value,
-                        )
+                        updateForm("ledgerAccountId", event.target.value)
                       }
                       required
                     >
-                      <option value="">
-                        Hesap seçin
-                      </option>
+                      <option value=''>Hesap seçin</option>
 
-                      {suitableAccounts.map(
-                        (account) => (
-                          <option
-                            key={account.id}
-                            value={account.id}
-                          >
-                            {account.code} —{" "}
-                            {account.name}
-                          </option>
-                        ),
-                      )}
+                      {suitableAccounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.code} — {account.name}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
-                  {Number(form.type) ===
-                    TreasuryType.Bank && (
+                  {Number(form.type) === TreasuryType.Bank && (
                     <>
-                      <div className="mb-3">
-                        <label className="form-label">
-                          Banka Adı
-                        </label>
+                      <div className='mb-3'>
+                        <label className='form-label'>Banka Adı</label>
 
                         <input
-                          className="form-control"
+                          className='form-control'
                           value={form.bankName}
                           onChange={(event) =>
-                            updateForm(
-                              "bankName",
-                              event.target.value,
-                            )
+                            updateForm("bankName", event.target.value)
                           }
                         />
                       </div>
 
-                      <div className="mb-3">
-                        <label className="form-label">
-                          IBAN
-                        </label>
+                      <div className='mb-3'>
+                        <label className='form-label'>IBAN</label>
 
                         <input
-                          className="form-control"
+                          className='form-control'
                           value={form.iban}
                           onChange={(event) =>
-                            updateForm(
-                              "iban",
-                              event.target.value,
-                            )
+                            updateForm("iban", event.target.value)
                           }
                         />
                       </div>
                     </>
                   )}
 
-                  <button className="btn btn-primary w-100">
-                    Hesap Oluştur
+                  <button
+                    className='btn btn-primary w-100'
+                    disabled={status === "loading"}
+                  >
+                    {status === "loading" ? "Kaydediliyor…" : "Hesap Oluştur"}
                   </button>
                 </form>
               </div>
@@ -485,161 +398,118 @@ export default function TreasuryPage() {
         )}
       </div>
 
-      {selectedTreasury &&
-        statement && (
-          <div className="card mt-4">
-            <div className="card-header d-flex justify-content-between">
-              <div>
-                <h2 className="h5 mb-1">
-                  {selectedTreasury.name}
-                </h2>
+      {selectedTreasury && statement && (
+        <div className='card mt-4'>
+          <div className='card-header d-flex justify-content-between'>
+            <div>
+              <h2 className='h5 mb-1'>{selectedTreasury.name}</h2>
 
-                <span className="text-body-secondary">
-                  {activePeriod?.name} Ekstresi
-                </span>
+              <span className='text-body-secondary'>
+                {activePeriod?.name} Ekstresi
+              </span>
+            </div>
+
+            <div className='text-end'>
+              <small className='text-body-secondary'>Bakiye</small>
+
+              <div className='fs-5 fw-semibold'>
+                {money(statement.closingBalance)}
               </div>
+            </div>
+          </div>
 
-              <div className="text-end">
-                <small className="text-body-secondary">
-                  Bakiye
-                </small>
+          {reconciliation && (
+            <div className='card-body border-bottom'>
+              <div className='row g-3'>
+                <div className='col-md-3'>
+                  <small className='text-body-secondary'>Defter Bakiyesi</small>
 
-                <div className="fs-5 fw-semibold">
-                  {money(
-                    statement.closingBalance,
-                  )}
+                  <div className='fw-semibold'>
+                    {money(reconciliation.ledgerBalance)}
+                  </div>
+                </div>
+
+                <div className='col-md-3'>
+                  <small className='text-body-secondary'>
+                    Alt Hesap Bakiyesi
+                  </small>
+
+                  <div className='fw-semibold'>
+                    {money(reconciliation.subledgerBalance)}
+                  </div>
+                </div>
+
+                <div className='col-md-3'>
+                  <small className='text-body-secondary'>Hesap Bakiyesi</small>
+
+                  <div className='fw-semibold'>
+                    {money(reconciliation.accountBalance)}
+                  </div>
+                </div>
+
+                <div className='col-md-3'>
+                  <small className='text-body-secondary'>Fark</small>
+
+                  <div
+                    className={`fw-semibold ${
+                      Number(reconciliation.difference) === 0
+                        ? "text-success"
+                        : "text-danger"
+                    }`}
+                  >
+                    {money(reconciliation.difference)}
+                  </div>
                 </div>
               </div>
             </div>
+          )}
 
-            {reconciliation && (
-              <div className="card-body border-bottom">
-                <div className="row g-3">
-                  <div className="col-md-3">
-                    <small className="text-body-secondary">
-                      Defter Bakiyesi
-                    </small>
+          {statement.items?.length ? (
+            <div className='table-responsive'>
+              <table className='table align-middle mb-0'>
+                <thead>
+                  <tr>
+                    <th>Tarih</th>
+                    <th>Fiş No</th>
+                    <th>Kaynak</th>
+                    <th className='text-end'>Borç</th>
+                    <th className='text-end'>Alacak</th>
+                    <th className='text-end'>Bakiye</th>
+                  </tr>
+                </thead>
 
-                    <div className="fw-semibold">
-                      {money(
-                        reconciliation.ledgerBalance,
-                      )}
-                    </div>
-                  </div>
+                <tbody>
+                  {statement.items.map((item, index) => (
+                    <tr key={index}>
+                      <td>{item.entry.date}</td>
 
-                  <div className="col-md-3">
-                    <small className="text-body-secondary">
-                      Alt Hesap Bakiyesi
-                    </small>
+                      <td>{item.entry.number}</td>
 
-                    <div className="fw-semibold">
-                      {money(
-                        reconciliation.subledgerBalance,
-                      )}
-                    </div>
-                  </div>
+                      <td>{item.entry.sourceType}</td>
 
-                  <div className="col-md-3">
-                    <small className="text-body-secondary">
-                      Hesap Bakiyesi
-                    </small>
+                      <td className='text-end'>{money(item.entry.debit)}</td>
 
-                    <div className="fw-semibold">
-                      {money(
-                        reconciliation.accountBalance,
-                      )}
-                    </div>
-                  </div>
+                      <td className='text-end'>{money(item.entry.credit)}</td>
 
-                  <div className="col-md-3">
-                    <small className="text-body-secondary">
-                      Fark
-                    </small>
-
-                    <div
-                      className={`fw-semibold ${
-                        Number(
-                          reconciliation.difference,
-                        ) === 0
-                          ? "text-success"
-                          : "text-danger"
-                      }`}
-                    >
-                      {money(
-                        reconciliation.difference,
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {statement.items?.length ? (
-              <div className="table-responsive">
-                <table className="table align-middle mb-0">
-                  <thead>
-                    <tr>
-                      <th>Tarih</th>
-                      <th>Fiş No</th>
-                      <th>Kaynak</th>
-                      <th className="text-end">
-                        Borç
-                      </th>
-                      <th className="text-end">
-                        Alacak
-                      </th>
-                      <th className="text-end">
-                        Bakiye
-                      </th>
+                      <td className='text-end fw-semibold'>
+                        {money(item.balance)}
+                      </td>
                     </tr>
-                  </thead>
-
-                  <tbody>
-                    {statement.items.map(
-                      (item, index) => (
-                        <tr key={index}>
-                          <td>
-                            {item.entry.date}
-                          </td>
-
-                          <td>
-                            {item.entry.number}
-                          </td>
-
-                          <td>
-                            {item.entry.sourceType}
-                          </td>
-
-                          <td className="text-end">
-                            {money(
-                              item.entry.debit,
-                            )}
-                          </td>
-
-                          <td className="text-end">
-                            {money(
-                              item.entry.credit,
-                            )}
-                          </td>
-
-                          <td className="text-end fw-semibold">
-                            {money(
-                              item.balance,
-                            )}
-                          </td>
-                        </tr>
-                      ),
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="card-body">
-                Henüz hareket bulunmuyor.
-              </div>
-            )}
-          </div>
-        )}
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className='card-body'>
+              <EmptyState
+                icon='bi-receipt-cutoff'
+                title='Henüz hesap hareketi yok'
+                text={`${selectedTreasury.name} hesabında bu mali döneme ait hareket bulunmuyor.`}
+              />
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }

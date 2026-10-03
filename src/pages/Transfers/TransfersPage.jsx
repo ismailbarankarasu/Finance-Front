@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../../api/client";
 import { useAccounting } from "../../context/useAccounting";
 import { CompanyRole, treasuryTypeLabel } from "../../utils/accounting";
+import { EmptyState, PageLoading } from "../../components/PageState";
 
 function localToday() {
   const now = new Date();
@@ -45,7 +46,7 @@ export default function TransfersPage() {
     [treasuries],
   );
 
-  async function loadData(signal) {
+  const loadData = useCallback(async (signal) => {
     if (!activeCompanyId || !activePeriodId) {
       return;
     }
@@ -65,6 +66,8 @@ export default function TransfersPage() {
         }),
       ]);
 
+      if (signal?.aborted) return;
+
       setTreasuries(treasuryResponse.data ?? []);
 
       setTransfers(transferResponse.data ?? []);
@@ -79,7 +82,7 @@ export default function TransfersPage() {
         error.response?.data?.message ?? "Virman bilgileri yüklenemedi.",
       );
     }
-  }
+  }, [activeCompanyId, activePeriodId]);
 
   useEffect(() => {
     if (!activeCompanyId || !activePeriodId) {
@@ -88,10 +91,13 @@ export default function TransfersPage() {
 
     const controller = new AbortController();
 
-    loadData(controller.signal);
+    const timeoutId = setTimeout(() => loadData(controller.signal), 0);
 
-    return () => controller.abort();
-  }, [activeCompanyId, activePeriodId]);
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [activeCompanyId, activePeriodId, loadData]);
 
   function treasuryName(id) {
     const treasury = treasuries.find((item) => item.id === id);
@@ -258,7 +264,20 @@ export default function TransfersPage() {
 
           <div className='card-footer text-end'>
             <button className='btn btn-primary' disabled={status === "loading"}>
-              Virman Oluştur
+              {status === "loading" ? (
+                <>
+                  <span
+                    className='spinner-border spinner-border-sm me-2'
+                    aria-hidden='true'
+                  />
+                  Virman Yapılıyor…
+                </>
+              ) : (
+                <>
+                  <i className='bi bi-arrow-left-right me-2' />
+                  Virman Oluştur
+                </>
+              )}
             </button>
           </div>
         </form>
@@ -269,8 +288,16 @@ export default function TransfersPage() {
           <h2 className='h5 mb-0'>Virman Geçmişi</h2>
         </div>
 
-        {transfers.length === 0 ? (
-          <div className='card-body'>Bu dönemde virman bulunmuyor.</div>
+        {status === "loading" ? (
+          <PageLoading text='Virman hareketleri yükleniyor…' />
+        ) : transfers.length === 0 ? (
+          <div className='card-body'>
+            <EmptyState
+              icon='bi-arrow-left-right'
+              title='Virman hareketi bulunmuyor'
+              text='Bu mali dönemde kasa veya banka hesapları arasında henüz virman yapılmamış.'
+            />
+          </div>
         ) : (
           <div className='table-responsive'>
             <table className='table align-middle mb-0'>

@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffectEvent, useEffect, useMemo, useState } from "react";
 import api from "../../api/client";
 import { useAccounting } from "../../context/useAccounting";
 
-import { CompanyRole, companyRoleLabel } from "../../utils/accounting";
+import { CompanyRole } from "../../utils/accounting";
+import { ConfirmModal } from "../../components/ConfirmModal";
 
+import { EmptyState } from "../../components/PageState";
 function formatDate(value) {
   if (!value) return "—";
 
@@ -81,7 +83,7 @@ export default function AdministrationPage() {
   const [error, setError] = useState("");
 
   const [success, setSuccess] = useState("");
-
+  const [memberToRemove, setMemberToRemove] = useState(null);
   const role = activeCompany?.role;
 
   const isAdmin = role === CompanyRole.Admin;
@@ -108,21 +110,23 @@ export default function AdministrationPage() {
     return items;
   }, [isAdmin, canAudit]);
 
-  useEffect(() => {
-    if (availableTabs.length > 0 && !availableTabs.includes(tab)) {
-      setTab(availableTabs[0]);
-    }
-  }, [availableTabs, tab]);
+  if (availableTabs.length > 0 && !availableTabs.includes(tab)) {
+    setTab(availableTabs[0]);
+  }
 
-  useEffect(() => {
+  const companyScope = activeCompanyId;
+  const [previousCompanyScope, setPreviousCompanyScope] = useState(companyScope);
+
+  if (previousCompanyScope !== companyScope) {
+    setPreviousCompanyScope(companyScope);
     setMembers([]);
     setAuditLogs([]);
     setMessages([]);
     setError("");
     setSuccess("");
-  }, [activeCompanyId]);
+  }
 
-  async function loadMembers() {
+  async function loadMembers(signal) {
     if (!activeCompanyId || !isAdmin) {
       return;
     }
@@ -131,19 +135,22 @@ export default function AdministrationPage() {
     setError("");
 
     try {
-      const { data } = await api.get(`/companies/${activeCompanyId}/members`);
+      const { data } = await api.get(`/companies/${activeCompanyId}/members`, { signal });
+
+      if (signal?.aborted) return;
 
       setMembers(data ?? []);
 
       setStatus("success");
     } catch (error) {
+      if (signal?.aborted) return;
       setStatus("error");
 
       setError(error.response?.data?.message ?? "Şirket üyeleri yüklenemedi.");
     }
   }
 
-  async function loadAudit() {
+  async function loadAudit(signal) {
     if (!activeCompanyId || !canAudit) {
       return;
     }
@@ -172,9 +179,12 @@ export default function AdministrationPage() {
       const { data } = await api.get(
         `/companies/${activeCompanyId}/audit-logs`,
         {
+          signal,
           params,
         },
       );
+
+      if (signal?.aborted) return;
 
       setAuditLogs(data.items ?? []);
 
@@ -182,13 +192,14 @@ export default function AdministrationPage() {
 
       setStatus("success");
     } catch (error) {
+      if (signal?.aborted) return;
       setStatus("error");
 
       setError(error.response?.data?.message ?? "Audit kayıtları yüklenemedi.");
     }
   }
 
-  async function loadMessages() {
+  async function loadMessages(signal) {
     if (!activeCompanyId || !canAudit) {
       return;
     }
@@ -200,6 +211,7 @@ export default function AdministrationPage() {
       const { data } = await api.get(
         `/companies/${activeCompanyId}/automation/messages`,
         {
+          signal,
           params: {
             status: messageStatus || undefined,
 
@@ -209,12 +221,15 @@ export default function AdministrationPage() {
         },
       );
 
+      if (signal?.aborted) return;
+
       setMessages(data.items ?? []);
 
       setMessageTotal(Number(data.totalCount ?? 0));
 
       setStatus("success");
     } catch (error) {
+      if (signal?.aborted) return;
       setStatus("error");
 
       setError(
@@ -223,7 +238,7 @@ export default function AdministrationPage() {
     }
   }
 
-  async function loadSettings() {
+  async function loadSettings(signal) {
     if (!activeCompanyId || !isAdmin) {
       return;
     }
@@ -234,7 +249,10 @@ export default function AdministrationPage() {
     try {
       const { data } = await api.get(
         `/companies/${activeCompanyId}/automation/settings`,
+        { signal },
       );
+
+      if (signal?.aborted) return;
 
       setSettings({
         timeZoneId: data.timeZoneId ?? "Europe/Istanbul",
@@ -246,6 +264,7 @@ export default function AdministrationPage() {
 
       setStatus("success");
     } catch (error) {
+      if (signal?.aborted) return;
       setStatus("error");
 
       setError(
@@ -254,25 +273,22 @@ export default function AdministrationPage() {
     }
   }
 
+  const loadCurrentTab = useEffectEvent((signal) => {
+    if (tab === "members") return loadMembers(signal);
+    if (tab === "audit") return loadAudit(signal);
+    if (tab === "automation") return loadMessages(signal);
+    if (tab === "settings") return loadSettings(signal);
+  });
+
   useEffect(() => {
     if (!activeCompanyId) return;
-
-    if (tab === "members") {
-      loadMembers();
-    }
-
-    if (tab === "audit") {
-      loadAudit();
-    }
-
-    if (tab === "automation") {
-      loadMessages();
-    }
-
-    if (tab === "settings") {
-      loadSettings();
-    }
-  }, [activeCompanyId, tab, messageStatus]);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => loadCurrentTab(controller.signal), 0);
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [activeCompanyId, tab, messageStatus, isAdmin, canAudit]);
 
   async function addMember(event) {
     event.preventDefault();
@@ -335,9 +351,18 @@ export default function AdministrationPage() {
   }
 
   async function removeMember(member) {
-    const confirmed = window.confirm(
-      `#${member.userId} kullanıcısı şirketten çıkarılsın mı?`,
-    );
+    const confirmed = async function removeMember(member) {
+      setError("");
+      setSuccess("");
+
+      await api.delete(
+        `/companies/${activeCompanyId}/members/${member.userId}`,
+      );
+
+      await loadMembers();
+
+      setSuccess("Kullanıcı üyeliği pasif hale getirildi.");
+    };
 
     if (!confirmed) return;
 
@@ -509,7 +534,7 @@ export default function AdministrationPage() {
           setMemberForm={setMemberForm}
           addMember={addMember}
           changeRole={changeRole}
-          removeMember={removeMember}
+          onRemoveMember={(member) => setMemberToRemove(member)}
         />
       )}
 
@@ -546,6 +571,25 @@ export default function AdministrationPage() {
           İşlem gerçekleştiriliyor…
         </div>
       )}
+      <ConfirmModal
+        show={memberToRemove !== null}
+        title='Kullanıcı şirketten çıkarılsın mı?'
+        body={
+          memberToRemove
+            ? `#${memberToRemove.userId} numaralı kullanıcının şirket üyeliği pasif hale getirilecektir.`
+            : ""
+        }
+        icon='warning'
+        confirmText='Kullanıcıyı Çıkar'
+        confirmButtonColor='#dc3545'
+        loadingText='Üyelik güncelleniyor…'
+        successTitle='Kullanıcı Çıkarıldı'
+        successText='Kullanıcının şirket üyeliği başarıyla pasif hale getirildi.'
+        errorTitle='Kullanıcı Çıkarılamadı'
+        errorText='Şirket üyeliği güncellenirken bir hata oluştu.'
+        onConfirm={() => removeMember(memberToRemove)}
+        onClose={() => setMemberToRemove(null)}
+      />
     </section>
   );
 }
@@ -556,7 +600,7 @@ function MembersTab({
   setMemberForm,
   addMember,
   changeRole,
-  removeMember,
+  onRemoveMember,
 }) {
   return (
     <div className='row g-4'>
@@ -567,7 +611,13 @@ function MembersTab({
           </div>
 
           {members.length === 0 ? (
-            <div className='card-body'>Üye bulunamadı.</div>
+            <div className='card-body'>
+              <EmptyState
+                icon='bi-people'
+                title='Şirket üyesi bulunamadı'
+                text='Bu şirkete henüz başka bir kullanıcı eklenmemiş.'
+              />
+            </div>
           ) : (
             <div className='table-responsive'>
               <table className='table align-middle mb-0'>
@@ -623,8 +673,9 @@ function MembersTab({
                           <button
                             type='button'
                             className='btn btn-outline-danger btn-sm'
-                            onClick={() => removeMember(member)}
+                            onClick={() => onRemoveMember(member)}
                           >
+                            <i className='bi bi-person-dash me-1' />
                             Çıkar
                           </button>
                         )}
@@ -763,7 +814,7 @@ function AuditTab({ logs, total, filter, setFilter, loadAudit }) {
               <button
                 type='button'
                 className='btn btn-primary w-100'
-                onClick={loadAudit}
+                onClick={() => loadAudit()}
               >
                 Filtrele
               </button>
@@ -780,7 +831,13 @@ function AuditTab({ logs, total, filter, setFilter, loadAudit }) {
         </div>
 
         {logs.length === 0 ? (
-          <div className='card-body'>Audit kaydı bulunamadı.</div>
+          <div className='card-body'>
+            <EmptyState
+              icon='bi-clock-history'
+              title='Audit kaydı bulunamadı'
+              text='Seçilen kriterlere uygun işlem geçmişi bulunmuyor.'
+            />
+          </div>
         ) : (
           <div className='table-responsive'>
             <table className='table align-middle mb-0'>
@@ -908,7 +965,13 @@ function AutomationTab({
       </div>
 
       {messages.length === 0 ? (
-        <div className='card-body'>Mesaj bulunamadı.</div>
+        <div className='card-body'>
+          <EmptyState
+            icon='bi-envelope'
+            title='Otomasyon mesajı bulunamadı'
+            text='Seçilen durumda gönderim kuyruğu kaydı bulunmuyor.'
+          />
+        </div>
       ) : (
         <div className='table-responsive'>
           <table className='table align-middle mb-0'>
